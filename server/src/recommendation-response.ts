@@ -15,6 +15,8 @@ export type TimelineItem = {
   type: TimelineItemType;
 };
 
+import type { RelaxationHint, RetrievalScenarioId } from './constraints/types';
+
 export type Plan = {
   id: string;
   title: string;
@@ -27,8 +29,15 @@ export type Plan = {
   timeline: TimelineItem[];
 };
 
+export type RelaxedPlanEntry = {
+  scenarioId: Exclude<RetrievalScenarioId, 'strict'>;
+  relaxationHint: RelaxationHint;
+  plan: Plan;
+};
+
 export type RecommendationResponse = {
   plans: Plan[];
+  relaxedPlans?: RelaxedPlanEntry[];
 };
 
 /**
@@ -146,8 +155,8 @@ function hasRequiredTimelineTypes(
 
 /**
  * Lightweight runtime check for RecommendationResponse.
- * No external JSON Schema library — enough for dummy responses today and
- * AI JSON tomorrow after Structured Outputs.
+ * Validates strict `plans` (3 items). Optional `relaxedPlans` are not checked here
+ * so existing clients that only read `plans` remain compatible.
  */
 export function validateRecommendationResponse(
   data: unknown
@@ -165,9 +174,25 @@ export function validateRecommendationResponse(
   }
 
   for (const plan of data.plans) {
-    if (!isPlainObject(plan)) {
-      throw new Error('AIの返却形式が不正です');
-    }
+    validatePlanShape(plan);
+  }
+}
+
+/**
+ * Runtime validation for a single enriched plan (relaxed scenarios).
+ */
+export function validatePlan(data: unknown): asserts data is Plan {
+  if (!isPlainObject(data)) {
+    throw new Error('AIの返却形式が不正です');
+  }
+
+  validatePlanShape(data);
+}
+
+function validatePlanShape(plan: unknown): void {
+  if (!isPlainObject(plan)) {
+    throw new Error('AIの返却形式が不正です');
+  }
 
     for (const key of PLAN_REQUIRED_KEYS) {
       if (!(key in plan)) {
@@ -220,5 +245,4 @@ export function validateRecommendationResponse(
     if (!hasRequiredTimelineTypes(typedTimeline)) {
       throw new Error('AIの返却形式が不正です');
     }
-  }
 }

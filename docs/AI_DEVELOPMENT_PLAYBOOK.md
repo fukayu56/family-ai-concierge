@@ -170,7 +170,22 @@ AIは以下を勝手に実施しない。
 
 
 
-## 7. Prompt Design Rules
+## 7. Data Source Policy
+
+外部データは必ず SpotCandidate に正規化してから利用する。
+
+AIは外部データの形式（CSV、JSON、GeoJSONなど）を直接扱わない。
+
+新しいデータソースを追加するときは、
+SpotService または専用Mapperのみを変更する。
+
+Prompt、Schema、Validationは変更しない。
+
+---
+
+
+
+## 8. Prompt Design Rules
 
 AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
@@ -199,7 +214,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 8. AI Model Policy
+## 9. AI Model Policy
 
 | フェーズ | 方針 |
 |---|---|
@@ -214,7 +229,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 9. UI / UX Rules
+## 10. UI / UX Rules
 
 - 入力は最小限にする（初期値・再利用で作業を減らす）
 - 状態が分かりやすい（読込中・成功・失敗を明示する）
@@ -231,7 +246,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 10. API Rules
+## 11. API Rules
 
 - Request と Response を型定義する
 - Validationを必ず行う（特にAIレスポンス）
@@ -246,7 +261,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 11. TypeScript Rules
+## 12. TypeScript Rules
 
 - 型安全を最優先する
 - `any` は禁止（やむを得ない場合は理由と範囲を明示する）
@@ -260,7 +275,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 12. Error Handling
+## 13. Error Handling
 
 エラーは種類ごとに扱いを分ける。
 
@@ -283,7 +298,7 @@ AIへ送るプロンプトは、感覚ではなく契約として設計する。
 
 
 
-## 13. Development Workflow
+## 14. Development Workflow
 
 推奨フロー:
 
@@ -319,7 +334,7 @@ AI
 
 
 
-## 14. Git Rules
+## 15. Git Rules
 
 - コミットは小さくする
 - 意味が分かる単位で分ける（機能 / 修正 / ドキュメント）
@@ -331,7 +346,7 @@ AI
 
 
 
-## 15. Future Expansion
+## 16. Future Expansion
 
 今後の拡張候補（必要性とタイミングはプロダクトごとに判断する）:
 
@@ -359,7 +374,7 @@ AI
 
 
 
-## 16. Non Goals
+## 17. Non Goals
 
 今やらないこと / MVPでやらないことを、毎回明確にする。
 
@@ -378,7 +393,7 @@ AI
 
 
 
-## 17. Definition of Done
+## 18. Definition of Done
 
 完成とみなす条件:
 
@@ -399,7 +414,7 @@ AI
 
 
 
-## 18. AI Checklist
+## 19. AI Checklist
 
 
 

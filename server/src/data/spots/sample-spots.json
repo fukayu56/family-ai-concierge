@@ -1,0 +1,65 @@
+[
+  {
+    "id": "sample-park-01",
+    "name": "みどり丘ファミリーパーク",
+    "category": "park",
+    "address": "架空市みどり区公園通1-1",
+    "latitude": 35.6812,
+    "longitude": 139.7671,
+    "description": "遊具と広い芝生があり、小さな子どもから小学生まで遊べる都市公園です。",
+    "tags": ["遊具", "芝生", "ピクニック", "無料"],
+    "source": "sample",
+    "sourceUrl": "https://example.local/spots/sample-park-01",
+    "lastUpdated": "2026-07-16"
+  },
+  {
+    "id": "sample-museum-01",
+    "name": "わくわく子ども科学館",
+    "category": "museum",
+    "address": "架空市中央区学び町2-3",
+    "latitude": 35.6895,
+    "longitude": 139.6917,
+    "description": "体験型展示が中心の屋内科学館。天候に左右されにくい半日向きの施設です。",
+    "tags": ["屋内", "体験", "科学", "雨の日"],
+    "source": "sample",
+    "sourceUrl": "https://example.local/spots/sample-museum-01",
+    "lastUpdated": "2026-07-16"
+  },
+  {
+    "id": "sample-zoo-01",
+    "name": "こどもどうぶつえん",
+    "category": "zoo",
+    "address": "架空市緑区どうぶつ園前4-5",
+    "latitude": 35.6581,
+    "longitude": 139.7014,
+    "description": "ふれあいコーナーがある小規模動物園。短時間でも満足しやすい構成です。",
+    "tags": ["動物", "ふれあい", "家族向け"],
+    "source": "sample",
+    "sourceUrl": "https://example.local/spots/sample-zoo-01",
+    "lastUpdated": "2026-07-16"
+  },
+  {
+    "id": "sample-cafe-01",
+    "name": "おひさまファミリーカフェ",
+    "category": "cafe",
+    "address": "架空市中央区休憩通6-7",
+    "description": "キッズチェアと広い通路があるカフェ。親子で休憩しやすい空間です。",
+    "tags": ["カフェ", "休憩", "キッズチェア"],
+    "source": "sample",
+    "sourceUrl": "https://example.local/spots/sample-cafe-01",
+    "lastUpdated": "2026-07-16"
+  },
+  {
+    "id": "sample-experience-01",
+    "name": "どきどき工作アトリエ",
+    "category": "experience",
+    "address": "架空市工芸区つくる町8-9",
+    "latitude": 35.7101,
+    "longitude": 139.8107,
+    "description": "親子で参加できる工作体験スタジオ。当日予約なしでも短時間体験しやすい想定です。",
+    "tags": ["工作", "体験", "親子"],
+    "source": "sample",
+    "sourceUrl": "https://example.local/spots/sample-experience-01",
+    "lastUpdated": "2026-07-16"
+  }
+]

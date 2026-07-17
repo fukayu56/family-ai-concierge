@@ -1,11 +1,16 @@
 import { router } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
-import { useOuting } from '@/contexts/outing-context';
+import {
+  useOuting,
+  WEATHER_LABELS,
+  WEATHER_OPTIONS,
+  type WeatherOption,
+} from '@/contexts/outing-context';
 
 export default function ConditionsScreen() {
   const {
@@ -21,6 +26,8 @@ export default function ConditionsScreen() {
     setTransport,
     specialRequests,
     setSpecialRequests,
+    weather,
+    setWeather,
   } = useOuting();
   const { selectedMemberIds } = useFamily();
 
@@ -90,6 +97,32 @@ export default function ConditionsScreen() {
             placeholder="車"
           />
 
+          <ThemedText style={styles.label}>天気</ThemedText>
+          <ThemedText style={styles.hint}>
+            雨を選ぶと屋内寄りの候補が優先されます（API未接続・手入力）
+          </ThemedText>
+          <View style={styles.chipRow}>
+            {WEATHER_OPTIONS.map((option) => {
+              const selected = weather === option;
+              return (
+                <Pressable
+                  key={option === '' ? 'none' : option}
+                  style={[styles.chip, selected ? styles.chipSelected : null]}
+                  onPress={() => setWeather(option as WeatherOption)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.chipText,
+                      selected ? styles.chipTextSelected : null,
+                    ]}
+                  >
+                    {WEATHER_LABELS[option]}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <ThemedText style={styles.label}>特別な要望</ThemedText>
           <TextInput
             style={[styles.input, styles.multilineInput]}
@@ -150,6 +183,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginTop: 4,
+  },
+  hint: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  chip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+  },
+  chipSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#2563eb',
+  },
+  chipText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  chipTextSelected: {
+    color: '#ffffff',
   },
   input: {
     width: '100%',

@@ -1,56 +1,103 @@
-# Welcome to your Expo app 👋
+# Family AI Concierge
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+家族のおでかけを、条件と個性から提案する Expo + Express アプリです。
 
-## Get started
+## 明日の実利用クイックスタート
 
-1. Install dependencies
+### 1. API サーバーを起動（PC）
 
-   ```bash
-   npm install
+```bash
+cd server
+npm install
+# server/.env に OPENAI_API_KEY=... を設定済みであること
+npm run start
+```
+
+別ターミナルで確認:
+
+```bash
+curl http://localhost:3001/health
+```
+
+`{"ok":true}` が返れば OK。
+
+### 2. Expo アプリを起動
+
+```bash
+npm install
+npx expo start
+```
+
+- **同じ PC のブラウザ（Web）:** 追加設定なし（`http://localhost:3001`）
+- **スマートフォン実機:** 下記「実機からAPIへ接続する」を実施
+
+### 3. 操作フロー
+
+1. ホームで参加者を選ぶ  
+2. 「今日のおでかけ条件」で時間・予算・天気などを入力  
+3. 「AIにプランを作ってもらう」  
+4. おすすめプラン（厳守）と「条件を少し広げると」を確認  
+
+---
+
+## 実機からAPIへ接続する
+
+物理デバイスでは `localhost` はスマホ自身を指すため、**PC の LAN IP** が必要です。
+
+### 手順
+
+1. PC とスマホを **同じ Wi-Fi** に接続する  
+2. Windows で PC の IPv4 を確認する（例）:
+
+   ```powershell
+   ipconfig
    ```
 
-2. Start the app
+   `ワイヤレス LAN アダプター` などの **IPv4 アドレス**（例: `192.168.1.23`）を控える。  
+   ※ IP は環境ごとに異なるため、決め打ちしない。
+
+3. プロジェクトルートに `.env` を作成（`.env.example` をコピー可）:
+
+   ```env
+   EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:3001
+   ```
+
+   `192.168.x.x` を自分の PC の IPv4 に置き換える。
+
+4. **Expo を再起動**（環境変数は起動時に読み込まれます）:
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+5. スマホのブラウザで先に疎通確認（任意）:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+   `http://<PCのIPv4>:3001/health`
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+6. Expo Go / 開発ビルドでアプリを開き、条件入力 → 提案まで確認する。
 
-## Get a fresh project
+### Windows ファイアウォール
 
-When you're ready, run:
+実機から `/health` がタイムアウトする場合:
 
-```bash
-npm run reset-project
-```
+1. Windows セキュリティ → ファイアウォール → 詳細設定  
+2. 「受信の規則」でポート **3001**（TCP）を許可する  
+3. または一時的に Node / `tsx` の受信を許可する  
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+同一 Wi-Fi・正しい IP・3001 開放の3点を確認してください。
 
-### Other setup steps
+API URL は `src/constants/api.ts` の1か所のみです。未設定時は `http://localhost:3001` にフォールバックします。
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+---
+
+## Get started（テンプレート）
+
+1. Install dependencies: `npm install`
+2. Start the app: `npx expo start`
+
+In the output, you'll find options to open the app in a development build, Android emulator, iOS simulator, or Expo Go.
 
 ## Learn more
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/)

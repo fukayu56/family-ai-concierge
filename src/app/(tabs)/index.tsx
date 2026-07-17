@@ -5,10 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
-import { useOuting } from '@/contexts/outing-context';
+import { useOuting, WEATHER_LABELS } from '@/contexts/outing-context';
 
 export default function HomeScreen() {
-  const { startTime, endTime, budget } = useOuting();
+  const { startTime, endTime, budget, weather } = useOuting();
   const {
     familyProfiles,
     selectedMemberIds,
@@ -49,6 +49,7 @@ export default function HomeScreen() {
             <ThemedText>出発：{startTime}</ThemedText>
             <ThemedText>帰着：{endTime}</ThemedText>
             <ThemedText>予算：{budget}円</ThemedText>
+            <ThemedText>天気：{WEATHER_LABELS[weather]}</ThemedText>
             <ThemedText style={styles.editHint}>今日の条件を編集 →</ThemedText>
           </ThemedView>
         </Pressable>

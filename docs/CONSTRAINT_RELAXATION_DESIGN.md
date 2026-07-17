@@ -2,8 +2,21 @@
 
 Family AI Concierge における「条件を少し変えたら実現できるプラン」の基本設計。
 
-**ステータス:** 設計のみ（未実装）  
+**ステータス:** サーバー実装済み / UI表示対応済み（2026-07-17）  
 **関連:** `FAMILY_AI_CONCIERGE_CHARTER.md` / `AI_DEVELOPMENT_PLAYBOOK.md` / `AI_SERVER_RESPONSIBILITY.md`
+
+### 実装状況（現状）
+
+| 項目 | 状態 |
+|---|---|
+| `ConstraintEnvelope` / `scenarioProfiles` | 実装済み（`server/src/constraints/`） |
+| `strict` 3プラン生成 | 実装済み |
+| `budget_relaxed` / `time_relaxed` 各1プラン生成 | 実装済み（失敗時は当該シナリオのみ省略） |
+| `RelaxationHint` | サーバー付与済み |
+| Response `relaxedPlans` | サーバー返却済み |
+| UI（strict + 緩和案セクション） | 実装済み（`src/app/results.tsx`） |
+| AbsoluteFilter 本実装 | **未実装（残課題）** |
+| 複合緩和・動的緩和幅 | Non Goals（変更なし） |
 
 ---
 
@@ -326,10 +339,17 @@ sequenceDiagram
 
 ---
 
-## 11. MVP 実装順（参考・今回は未着手）
+## 11. MVP 実装順（進捗）
 
-1. `ConstraintEnvelope` 型と `scenarioProfiles` 定義
-2. Strict のみ envelope 検証を Business Validation に接続
-3. `budget_relaxed` / `time_relaxed` の envelope 生成と UI 提示
-4. GPT prompt へ `RelaxationHint` 注入
-5. Phase 1.5: `meal_flexible`
+1. ~~`ConstraintEnvelope` 型と `scenarioProfiles` 定義~~ … 完了
+2. ~~Strict のみ envelope 検証を Business Validation に接続~~ … 完了
+3. ~~`budget_relaxed` / `time_relaxed` の envelope 生成と UI 提示~~ … 完了
+4. ~~GPT prompt へ `RelaxationHint` 注入~~ … 完了
+5. Phase 1.5: `meal_flexible` … **未着手**
+
+### 残課題
+
+- AbsoluteFilter の本実装
+- 緩和シナリオ失敗時のユーザー向け明示（現状はサーバーログ＋UIは成功分のみ表示）
+- `meal_flexible` など Phase 1.5 シナリオ
+- 設計ドキュメント冒頭のステータスと実装の乖離は、本節で同期済み

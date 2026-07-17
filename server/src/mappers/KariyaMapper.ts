@@ -86,6 +86,7 @@ export function parseKariyaTourismCsv(csvText: string): SpotCandidate[] {
       id: no !== '' ? `kariya-${no}` : `kariya-row-${i}`,
       name,
       category: inferKariyaCategory(name),
+      city: '刈谷市',
       address,
       description,
       tags: note !== '' ? [note] : [],
@@ -101,10 +102,33 @@ export function parseKariyaTourismCsv(csvText: string): SpotCandidate[] {
       spot.longitude = longitude;
     }
 
+    applyInferredIndoorAttributes(spot);
+
     spots.push(spot);
   }
 
   return spots;
+}
+
+/**
+ * Set indoor + confidence only when the name clearly indicates
+ * 科学館 / 博物館 (indoor) or 公園 (outdoor).
+ * Does not set parking, costLevel, or recommendedAge.
+ * Inferred values are marked confidence="inferred" (not verified).
+ */
+function applyInferredIndoorAttributes(spot: SpotCandidate): void {
+  const name = spot.name;
+
+  if (name.includes('科学館') || name.includes('博物館')) {
+    spot.indoor = true;
+    spot.confidence = 'inferred';
+    return;
+  }
+
+  if (name.includes('公園')) {
+    spot.indoor = false;
+    spot.confidence = 'inferred';
+  }
 }
 
 /**

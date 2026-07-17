@@ -1,0 +1,58 @@
+[
+  {
+    "id": "toyota-curated-korankei",
+    "name": "香嵐渓",
+    "category": "sightseeing",
+    "city": "豊田市",
+    "address": "愛知県豊田市足助町",
+    "description": "豊田市足助の渓谷。公式観光情報で紹介される自然観光スポット。",
+    "tags": ["自然", "観光"],
+    "source": "curated-official",
+    "sourceUrl": "https://www.city.toyota.aichi.jp/",
+    "lastUpdated": "2026-07-17",
+    "indoor": false,
+    "confidence": "inferred"
+  },
+  {
+    "id": "toyota-curated-kuragaike",
+    "name": "鞍ケ池公園",
+    "category": "park",
+    "city": "豊田市",
+    "address": "愛知県豊田市矢並町法沢728-4",
+    "description": "豊田市の総合公園。公式施設情報で確認できる家族向け公園。",
+    "tags": ["公園", "レクリエーション"],
+    "source": "curated-official",
+    "sourceUrl": "https://www.city.toyota.aichi.jp/",
+    "lastUpdated": "2026-07-17",
+    "indoor": false,
+    "confidence": "inferred"
+  },
+  {
+    "id": "toyota-curated-museum",
+    "name": "豊田市美術館",
+    "category": "museum",
+    "city": "豊田市",
+    "address": "愛知県豊田市小坂本町8-5-1",
+    "description": "豊田市公式の美術館。屋内の文化施設。",
+    "tags": ["美術館", "屋内"],
+    "source": "curated-official",
+    "sourceUrl": "https://www.museum.toyota.aichi.jp/",
+    "lastUpdated": "2026-07-17",
+    "indoor": true,
+    "confidence": "inferred"
+  },
+  {
+    "id": "toyota-curated-museum-history",
+    "name": "豊田市博物館",
+    "category": "museum",
+    "city": "豊田市",
+    "address": "愛知県豊田市久澄町2-19",
+    "description": "豊田市公式の博物館。歴史・文化の屋内施設。",
+    "tags": ["博物館", "屋内"],
+    "source": "curated-official",
+    "sourceUrl": "https://www.city.toyota.aichi.jp/",
+    "lastUpdated": "2026-07-17",
+    "indoor": true,
+    "confidence": "inferred"
+  }
+]

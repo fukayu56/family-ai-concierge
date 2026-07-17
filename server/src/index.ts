@@ -33,28 +33,49 @@ import {
   inspectPlanSimilarity,
   logTimeRelaxationUsage,
 } from './validation/inspectPlanSimilarity';
+import {
+  applyScenarioFilter,
+  buildScenarioFilterContextFromEnvelope,
+  detectRainyWeather,
+  takePromptCandidates,
+  type ScoredSpotCandidate,
+} from './filters/ScenarioFilter';
+import { selectDiversePromptCandidates } from './filters/selectDiversePromptCandidates';
+import { inspectScenarioFilterResult } from './filters/inspectScenarioFilter';
 
 const spotService = new SpotService();
 
-function formatCandidateSpotsSection(spots: SpotCandidate[]): string[] {
+function formatCandidateSpotsSection(
+  spots: SpotCandidate[],
+  scoredById?: Map<string, ScoredSpotCandidate>
+): string[] {
   if (spots.length === 0) {
     return [];
   }
 
-  const blocks = spots.map((spot) =>
-    [
+  const blocks = spots.map((spot) => {
+    const lines = [
       `・${spot.name}`,
+      spot.city ? `市：${spot.city}` : '',
       `カテゴリ：${spot.category}`,
       '',
       '説明：',
       spot.description,
-    ].join('\n')
-  );
+    ].filter((line) => line !== '');
+
+    const scored = scoredById?.get(spot.id);
+    if (scored != null && scored.reasons.length > 0) {
+      lines.push('');
+      lines.push(`適合メモ：${scored.reasons.join(' / ')}`);
+    }
+
+    return lines.join('\n');
+  });
 
   return [
     '',
     '## 利用可能な候補スポット',
-    '以下の候補を優先して利用してください。',
+    '以下の候補を優先して利用してください（上にある候補ほど当日条件への適合が高い並びです）。',
     '候補が条件に合わない場合のみ、一般的な施設タイプを提案して構いません。',
     '',
     '----------------------------------',
@@ -63,6 +84,67 @@ function formatCandidateSpotsSection(spots: SpotCandidate[]): string[] {
     '',
     '----------------------------------',
   ];
+}
+
+/**
+ * AbsoluteFilter is not implemented yet (pass-through).
+ * ScenarioFilter ranks spots; does not delete unknowns.
+ */
+function prepareCandidateSpotsForPrompt(
+  spots: SpotCandidate[],
+  envelope: ConstraintEnvelope,
+  options: {
+    weather?: string;
+    participantAges?: Array<number | null>;
+    logLabel?: string;
+    log?: boolean;
+  } = {}
+): { orderedSpots: SpotCandidate[]; scoredById: Map<string, ScoredSpotCandidate> } {
+  const context = buildScenarioFilterContextFromEnvelope(envelope, {
+    weather: options.weather,
+    participantAges: options.participantAges,
+  });
+
+  // AbsoluteFilter: pass-through (TODO)
+  const afterAbsolute = spots;
+
+  const ranked = applyScenarioFilter(afterAbsolute, context);
+  const rainy = detectRainyWeather(options.weather);
+  // Diversify from the full ranked list first, then soft-cap at 20.
+  // (Do not slice to 20 before diversity — parks would monopolize the pool.)
+  const diversified = selectDiversePromptCandidates(ranked, {
+    limit: 20,
+    maxPerCategory: 6,
+    preferIndoorConcentration: rainy === true,
+  });
+  const promptCandidates = takePromptCandidates(diversified, 20);
+
+  inspectScenarioFilterResult(afterAbsolute, promptCandidates, {
+    label: options.logLabel ?? `ScenarioFilter (${envelope.scenarioId})`,
+    log: options.log ?? true,
+  });
+
+  if (options.log ?? true) {
+    const cityCounts: Record<string, number> = {};
+    const categoryCounts: Record<string, number> = {};
+    for (const entry of promptCandidates) {
+      const city = entry.spot.city ?? '(unknown)';
+      const category = entry.spot.category || 'other';
+      cityCounts[city] = (cityCounts[city] ?? 0) + 1;
+      categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
+    }
+    console.log('Prompt candidates (top 20) city/category:');
+    console.log(`- cities: ${JSON.stringify(cityCounts)}`);
+    console.log(`- categories: ${JSON.stringify(categoryCounts)}`);
+  }
+
+  const scoredById = new Map(
+    promptCandidates.map((entry) => [entry.spot.id, entry])
+  );
+  return {
+    orderedSpots: promptCandidates.map((entry) => entry.spot),
+    scoredById,
+  };
 }
 
 dotenv.config();
@@ -150,6 +232,8 @@ type RecommendationPromptMode = 'strict' | 'budget_relaxed' | 'time_relaxed';
 type BuildRecommendationPromptOptions = {
   mode?: RecommendationPromptMode;
   strictEnvelope?: ConstraintEnvelope;
+  /** ScenarioFilter reasons keyed by spot id (optional Prompt enrichment). */
+  scoredById?: Map<string, ScoredSpotCandidate>;
 };
 
 type RelaxedScenarioId = Exclude<RecommendationPromptMode, 'strict'>;
@@ -485,7 +569,10 @@ export function buildRecommendationPrompt(
     `- 移動手段: ${envelope.transport}`,
     `- 特別な要望: ${conditions.specialRequests || 'なし'}`,
     ...enrichmentSection,
-    ...formatCandidateSpotsSection(candidateSpots),
+    ...formatCandidateSpotsSection(
+      candidateSpots,
+      promptOptions.scoredById
+    ),
     '',
     '## 絶対条件（プロダクトルール）',
     `- 帰着時刻（${envelope.endTime}）までに必ず帰宅できるタイムラインにする`,
@@ -938,13 +1025,24 @@ async function generateRelaxedPlanEntry(
     );
   }
 
+  const { orderedSpots, scoredById } = prepareCandidateSpotsForPrompt(
+    candidateSpots,
+    envelope,
+    {
+      weather: enrichment.weather,
+      participantAges: participants.map((member) => member.age),
+      logLabel: `ScenarioFilter (${scenarioId})`,
+      log: false,
+    }
+  );
+
   const prompt = buildRecommendationPrompt(
     envelope,
     conditions,
     participants,
     enrichment,
-    candidateSpots,
-    { mode: scenarioId, strictEnvelope }
+    orderedSpots,
+    { mode: scenarioId, strictEnvelope, scoredById }
   );
 
   const parsed = await fetchOpenAiJsonDraft(
@@ -1099,24 +1197,46 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
   console.log(`- startTime: ${strictEnvelope.startTime}`);
   console.log(`- endTime: ${strictEnvelope.endTime}`);
 
-  const candidateSpots = spotService.loadSampleSpots();
-  console.log(`Loaded spots: ${candidateSpots.length}`);
+  const loaded = spotService.loadProductionSpots();
+  console.log(`Loaded production spots: ${loaded.merge.afterCount} (before dedupe: ${loaded.merge.beforeCount})`);
+  console.log(`Cities: ${JSON.stringify(loaded.byCity)}`);
+  if (loaded.mapperErrors.length > 0) {
+    console.warn('Mapper errors:', loaded.mapperErrors);
+  }
+  for (const [city, count] of Object.entries(loaded.byCity)) {
+    if (count === 0) {
+      console.warn(`[WARNING] ${city} has 0 spots`);
+    }
+  }
+
+  const enrichment: RecommendationEnrichment = {
+    weather: body.weather,
+    traffic: body.traffic,
+    congestion: body.congestion,
+    reviews: body.reviews,
+    businessHours: body.businessHours,
+    parking: body.parking,
+    priceLevel: body.priceLevel,
+    specialEvents: body.specialEvents,
+  };
+
+  const { orderedSpots, scoredById } = prepareCandidateSpotsForPrompt(
+    loaded.spots,
+    strictEnvelope,
+    {
+      weather: enrichment.weather,
+      participantAges: participants.map((member) => member.age),
+      logLabel: 'ScenarioFilter (strict)',
+    }
+  );
 
   const prompt = buildRecommendationPrompt(
     strictEnvelope,
     conditions,
     participants,
-    {
-      weather: body.weather,
-      traffic: body.traffic,
-      congestion: body.congestion,
-      reviews: body.reviews,
-      businessHours: body.businessHours,
-      parking: body.parking,
-      priceLevel: body.priceLevel,
-      specialEvents: body.specialEvents,
-    },
-    candidateSpots
+    enrichment,
+    orderedSpots,
+    { scoredById }
   );
   console.log('=== recommendation prompt ===');
   console.log(prompt);
@@ -1190,17 +1310,8 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     strictEnvelope,
     conditions,
     participants,
-    {
-      weather: body.weather,
-      traffic: body.traffic,
-      congestion: body.congestion,
-      reviews: body.reviews,
-      businessHours: body.businessHours,
-      parking: body.parking,
-      priceLevel: body.priceLevel,
-      specialEvents: body.specialEvents,
-    },
-    candidateSpots
+    enrichment,
+    loaded.spots
   );
 
   inspectPlanSimilarity([

@@ -12,9 +12,25 @@ export type SpotInspectionSummary = {
   missingName: number;
   missingAddress: number;
   missingCoordinates: number;
+  missingCity: number;
+  missingSourceUrl: number;
   duplicateIds: number;
   duplicateNameAddress: number;
   categories: Record<string, number>;
+  cities: Record<string, number>;
+  sources: Record<string, number>;
+  indoorTrue: number;
+  indoorFalse: number;
+  indoorUnknown: number;
+  /** Phase A optional attribute fill counts (present, not invalid). */
+  phaseAAttributes: {
+    indoorSet: number;
+    parkingSet: number;
+    costLevelSet: number;
+    recommendedAgeSet: number;
+    verifiedSet: number;
+    confidenceCounts: Record<string, number>;
+  };
 };
 
 export type SpotInspectionResult = {
@@ -66,9 +82,22 @@ export function inspectSpotCandidates(
   let missingName = 0;
   let missingAddress = 0;
   let missingCoordinates = 0;
+  let missingCity = 0;
+  let missingSourceUrl = 0;
   let duplicateIds = 0;
   let duplicateNameAddress = 0;
+  let indoorTrue = 0;
+  let indoorFalse = 0;
+  let indoorUnknown = 0;
   const categories: Record<string, number> = {};
+  const cities: Record<string, number> = {};
+  const sources: Record<string, number> = {};
+  let indoorSet = 0;
+  let parkingSet = 0;
+  let costLevelSet = 0;
+  let recommendedAgeSet = 0;
+  let verifiedSet = 0;
+  const confidenceCounts: Record<string, number> = {};
 
   for (let i = 0; i < spots.length; i++) {
     const spot = spots[i];
@@ -152,6 +181,47 @@ export function inspectSpotCandidates(
       }
     }
 
+    collectPhaseAAttributeIssues(spot, reasons);
+
+    if (spot.indoor !== undefined) {
+      indoorSet += 1;
+      if (spot.indoor === true) indoorTrue += 1;
+      else indoorFalse += 1;
+    } else {
+      indoorUnknown += 1;
+    }
+    if (spot.parking !== undefined) {
+      parkingSet += 1;
+    }
+    if (spot.costLevel !== undefined) {
+      costLevelSet += 1;
+    }
+    if (spot.recommendedAge !== undefined) {
+      recommendedAgeSet += 1;
+    }
+    if (spot.verified !== undefined) {
+      verifiedSet += 1;
+    }
+    if (spot.confidence !== undefined) {
+      const key = String(spot.confidence);
+      confidenceCounts[key] = (confidenceCounts[key] ?? 0) + 1;
+    }
+
+    if (!isNonEmptyString(spot.city)) {
+      missingCity += 1;
+    } else {
+      cities[spot.city] = (cities[spot.city] ?? 0) + 1;
+    }
+
+    if (!isNonEmptyString(spot.sourceUrl)) {
+      missingSourceUrl += 1;
+    }
+
+    const sourceKey = isNonEmptyString(spot.source)
+      ? spot.source.trim()
+      : '(empty)';
+    sources[sourceKey] = (sources[sourceKey] ?? 0) + 1;
+
     const categoryKey = isNonEmptyString(spot.category)
       ? spot.category.trim()
       : '(empty)';
@@ -177,9 +247,24 @@ export function inspectSpotCandidates(
     missingName,
     missingAddress,
     missingCoordinates,
+    missingCity,
+    missingSourceUrl,
     duplicateIds,
     duplicateNameAddress,
     categories,
+    cities,
+    sources,
+    indoorTrue,
+    indoorFalse,
+    indoorUnknown,
+    phaseAAttributes: {
+      indoorSet,
+      parkingSet,
+      costLevelSet,
+      recommendedAgeSet,
+      verifiedSet,
+      confidenceCounts,
+    },
   };
 
   if (shouldLog) {
@@ -191,6 +276,48 @@ export function inspectSpotCandidates(
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
+}
+
+const COST_LEVELS = new Set(['free', 'low', 'medium', 'high']);
+const CONFIDENCE_LEVELS = new Set(['verified', 'inferred', 'unknown']);
+
+/**
+ * Soft type checks for Phase A optional fields.
+ * Missing fields are fine; wrong types/values are reported as issues.
+ */
+function collectPhaseAAttributeIssues(
+  spot: SpotCandidate,
+  reasons: string[]
+): void {
+  if (spot.indoor !== undefined && typeof spot.indoor !== 'boolean') {
+    reasons.push('indoor must be boolean when set');
+  }
+  if (spot.parking !== undefined && typeof spot.parking !== 'boolean') {
+    reasons.push('parking must be boolean when set');
+  }
+  if (spot.verified !== undefined && typeof spot.verified !== 'boolean') {
+    reasons.push('verified must be boolean when set');
+  }
+  if (
+    spot.costLevel !== undefined &&
+    (typeof spot.costLevel !== 'string' || !COST_LEVELS.has(spot.costLevel))
+  ) {
+    reasons.push('costLevel must be free|low|medium|high when set');
+  }
+  if (
+    spot.confidence !== undefined &&
+    (typeof spot.confidence !== 'string' ||
+      !CONFIDENCE_LEVELS.has(spot.confidence))
+  ) {
+    reasons.push('confidence must be verified|inferred|unknown when set');
+  }
+  if (spot.recommendedAge !== undefined) {
+    if (!Array.isArray(spot.recommendedAge)) {
+      reasons.push('recommendedAge must be string[] when set');
+    } else if (spot.recommendedAge.some((item) => typeof item !== 'string')) {
+      reasons.push('recommendedAge items must be strings');
+    }
+  }
 }
 
 function logInspection(
@@ -205,8 +332,25 @@ function logInspection(
   console.log(`- missing name: ${summary.missingName}`);
   console.log(`- missing address: ${summary.missingAddress}`);
   console.log(`- missing coordinates: ${summary.missingCoordinates}`);
+  console.log(`- missing city: ${summary.missingCity}`);
+  console.log(`- missing sourceUrl: ${summary.missingSourceUrl}`);
   console.log(`- duplicate ids: ${summary.duplicateIds}`);
   console.log(`- duplicate name/address: ${summary.duplicateNameAddress}`);
+  console.log(
+    `- indoor true/false/unknown: ${summary.indoorTrue}/${summary.indoorFalse}/${summary.indoorUnknown}`
+  );
+  console.log('- cities:');
+  for (const [city, count] of Object.entries(summary.cities).sort((a, b) =>
+    a[0].localeCompare(b[0], 'ja')
+  )) {
+    console.log(`  - ${city}: ${count}`);
+  }
+  console.log('- sources:');
+  for (const [source, count] of Object.entries(summary.sources).sort((a, b) =>
+    a[0].localeCompare(b[0], 'ja')
+  )) {
+    console.log(`  - ${source}: ${count}`);
+  }
   console.log('- categories:');
 
   const categoryEntries = Object.entries(summary.categories).sort((a, b) =>
@@ -214,6 +358,25 @@ function logInspection(
   );
   for (const [category, count] of categoryEntries) {
     console.log(`  - ${category}: ${count}`);
+  }
+
+  const phaseA = summary.phaseAAttributes;
+  console.log('- Phase A attributes:');
+  console.log(`  - indoor set: ${phaseA.indoorSet}`);
+  console.log(`  - parking set: ${phaseA.parkingSet}`);
+  console.log(`  - costLevel set: ${phaseA.costLevelSet}`);
+  console.log(`  - recommendedAge set: ${phaseA.recommendedAgeSet}`);
+  console.log(`  - verified set: ${phaseA.verifiedSet}`);
+  console.log('  - confidence:');
+  const confidenceEntries = Object.entries(phaseA.confidenceCounts).sort(
+    (a, b) => a[0].localeCompare(b[0])
+  );
+  if (confidenceEntries.length === 0) {
+    console.log('    - (none)');
+  } else {
+    for (const [level, count] of confidenceEntries) {
+      console.log(`    - ${level}: ${count}`);
+    }
   }
 
   for (const issue of invalidSpots) {

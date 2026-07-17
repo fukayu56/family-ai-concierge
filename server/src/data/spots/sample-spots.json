@@ -10,7 +10,9 @@
     "tags": ["遊具", "芝生", "ピクニック", "無料"],
     "source": "sample",
     "sourceUrl": "https://example.local/spots/sample-park-01",
-    "lastUpdated": "2026-07-16"
+    "lastUpdated": "2026-07-16",
+    "indoor": false,
+    "confidence": "inferred"
   },
   {
     "id": "sample-museum-01",
@@ -23,7 +25,9 @@
     "tags": ["屋内", "体験", "科学", "雨の日"],
     "source": "sample",
     "sourceUrl": "https://example.local/spots/sample-museum-01",
-    "lastUpdated": "2026-07-16"
+    "lastUpdated": "2026-07-16",
+    "indoor": true,
+    "confidence": "inferred"
   },
   {
     "id": "sample-zoo-01",

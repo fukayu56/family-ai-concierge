@@ -52,7 +52,7 @@ export default function ConditionsScreen() {
     keyboardShouldPersistTaps="handled"
   >
         <ThemedText type="title" style={styles.title}>
-          今日のおでかけ条件
+          おでかけ条件
         </ThemedText>
 
         <ThemedView style={styles.card}>

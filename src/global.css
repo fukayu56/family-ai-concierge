@@ -7,3 +7,22 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+/* iOS Safari: keep vertical scrolling enabled on small screens (Web only) */
+html,
+body,
+#root,
+#expo-root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS Safari sometimes needs this to avoid 100vh-based layout issues. */
+#expo-root {
+  min-height: -webkit-fill-available;
+}

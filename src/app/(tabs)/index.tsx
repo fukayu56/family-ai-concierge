@@ -1,9 +1,10 @@
 import { type Href, router } from 'expo-router';
-import { Alert, Platform, Pressable, StyleSheet } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BottomTabInset } from '@/constants/theme';
 import { useFamily } from '@/contexts/family-context';
 import { useOuting, WEATHER_LABELS } from '@/contexts/outing-context';
 
@@ -32,66 +33,75 @@ export default function HomeScreen() {
     router.push('/results' as Href);
   }
 
+  const content = (
+    <>
+      <ThemedText type="title" style={styles.title}>
+        Family AI Concierge
+      </ThemedText>
+
+      <ThemedText style={styles.subtitle}>
+        家族にぴったりの一日を、AIと一緒に考えます。
+      </ThemedText>
+
+      <Pressable onPress={() => router.push('/conditions')}>
+        <ThemedView style={styles.card}>
+            <ThemedText style={styles.sectionTitle}>おでかけ条件</ThemedText>
+          <ThemedText>出発：{startTime}</ThemedText>
+          <ThemedText>帰着：{endTime}</ThemedText>
+          <ThemedText>予算：{budget}円</ThemedText>
+          <ThemedText>天気：{WEATHER_LABELS[weather]}</ThemedText>
+            <ThemedText style={styles.editHint}>おでかけ条件を編集 →</ThemedText>
+        </ThemedView>
+      </Pressable>
+
+      <ThemedView style={styles.card}>
+          <ThemedText style={styles.sectionTitle}>おでかけする人</ThemedText>
+        {familyProfiles.map((member) => (
+          <Pressable
+            key={member.id}
+            onPress={() => toggleMember(member.id)}
+          >
+            <ThemedText>
+              {selectedMemberIds.includes(member.id) ? '☑' : '☐'} {member.name}
+              {member.age ? ` ${member.age}歳` : ''}
+            </ThemedText>
+          </Pressable>
+        ))}
+      </ThemedView>
+
+      <ThemedView style={styles.card}>
+          <ThemedText style={styles.sectionTitle}>参加者</ThemedText>
+        <ThemedText>
+          {selectedMembers.map((member) => member.name).join('、')}
+        </ThemedText>
+      </ThemedView>
+
+      <Pressable style={styles.button} onPress={handleCreatePlan}>
+        <ThemedText style={styles.buttonText}>AIにプランを作ってもらう</ThemedText>
+      </Pressable>
+
+      <Pressable
+        style={styles.secondaryButton}
+        onPress={() => router.push('/family' as Href)}
+      >
+        <ThemedText style={styles.secondaryButtonText}>家族タブを開く</ThemedText>
+      </Pressable>
+    </>
+  );
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText type="title" style={styles.title}>
-          Family AI Concierge
-        </ThemedText>
-
-        <ThemedText style={styles.subtitle}>
-          家族にぴったりの一日を、AIと一緒に考えます。
-        </ThemedText>
-
-        <Pressable onPress={() => router.push('/conditions')}>
-          <ThemedView style={styles.card}>
-            <ThemedText style={styles.sectionTitle}>今日のおでかけ条件</ThemedText>
-            <ThemedText>出発：{startTime}</ThemedText>
-            <ThemedText>帰着：{endTime}</ThemedText>
-            <ThemedText>予算：{budget}円</ThemedText>
-            <ThemedText>天気：{WEATHER_LABELS[weather]}</ThemedText>
-            <ThemedText style={styles.editHint}>今日の条件を編集 →</ThemedText>
-          </ThemedView>
-        </Pressable>
-
-        <ThemedView style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>今日行く人</ThemedText>
-          {familyProfiles.map((member) => (
-            <Pressable
-              key={member.id}
-              onPress={() => toggleMember(member.id)}
-            >
-              <ThemedText>
-                {selectedMemberIds.includes(member.id) ? '☑' : '☐'}{' '}
-                {member.name}
-                {member.age ? ` ${member.age}歳` : ''}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </ThemedView>
-
-        <ThemedView style={styles.card}>
-          <ThemedText style={styles.sectionTitle}>今日の参加者</ThemedText>
-          <ThemedText>
-            {selectedMembers.map((member) => member.name).join('、')}
-          </ThemedText>
-        </ThemedView>
-
-        <Pressable style={styles.button} onPress={handleCreatePlan}>
-          <ThemedText style={styles.buttonText}>
-            AIにプランを作ってもらう
-          </ThemedText>
-        </Pressable>
-
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={() => router.push('/family' as Href)}
+      {Platform.OS === 'web' ? (
+        <ScrollView
+          style={styles.webScroll}
+          contentContainerStyle={styles.webScrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          <ThemedText style={styles.secondaryButtonText}>
-            家族プロフィールを編集
-          </ThemedText>
-        </Pressable>
-      </SafeAreaView>
+          {content}
+        </ScrollView>
+      ) : (
+        <SafeAreaView style={styles.safeArea}>{content}</SafeAreaView>
+      )}
     </ThemedView>
   );
 }
@@ -100,12 +110,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  webScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  webScrollContent: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    gap: 20,
+    paddingBottom: BottomTabInset + 48,
+  },
   safeArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: 24,
     paddingVertical: 32,
+    paddingBottom: BottomTabInset + 32,
     gap: 20,
   },
   title: {

@@ -19,7 +19,6 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="conditions" />
-            <Stack.Screen name="family" />
             <Stack.Screen name="profile-edit" />
             <Stack.Screen name="results" />
           </Stack>

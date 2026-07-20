@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
+  buildMemberLikes,
   useFamily,
   type FamilyMember,
   type FamilyMemberInput,
@@ -24,7 +25,6 @@ function getInitialForm(member: FamilyMember | undefined) {
     interests: member?.interests ?? '',
     canTolerate: member?.canTolerate ?? '',
     cannotTolerate: member?.cannotTolerate ?? '',
-    likes: member?.likes ?? '',
   };
 }
 
@@ -49,16 +49,10 @@ export default function ProfileEditScreen() {
     const age =
       parsedAge !== null && Number.isFinite(parsedAge) ? parsedAge : null;
 
-    const likes =
-      form.likes.trim() ||
-      form.interests.trim() ||
-      form.favoritePlay.trim() ||
-      '';
-
     const data: FamilyMemberInput = {
       name: form.name.trim() || '名前未設定',
       age,
-      likes,
+      likes: buildMemberLikes(form.favoritePlay, form.interests),
       gender: form.gender,
       favoriteFoods: form.favoriteFoods,
       dislikedFoods: form.dislikedFoods,

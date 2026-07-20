@@ -28,6 +28,38 @@ export type FamilyMember = {
 
 export type FamilyMemberInput = Omit<FamilyMember, 'id'>;
 
+/**
+ * Build the summary "likes" string from editable profile fields.
+ * Matches profile-edit inputs: 好きな遊び + 今興味があるもの.
+ */
+export function buildMemberLikes(favoritePlay: string, interests: string): string {
+  const play = favoritePlay.trim();
+  const ints = interests.trim();
+  if (!play && !ints) {
+    return '';
+  }
+  if (play && ints) {
+    if (play === ints) {
+      return play;
+    }
+    return `${play}、${ints}`;
+  }
+  return play || ints;
+}
+
+/**
+ * Display label for 家族図鑑「好きなこと」.
+ * Prefers favoritePlay + interests; falls back to legacy likes from storage.
+ */
+export function formatMemberLikesDisplay(member: FamilyMember): string {
+  const fromFields = buildMemberLikes(member.favoritePlay, member.interests);
+  if (fromFields) {
+    return fromFields;
+  }
+  const legacy = member.likes.trim();
+  return legacy || '未設定';
+}
+
 type FamilyContextValue = {
   familyProfiles: FamilyMember[];
   setFamilyProfiles: Dispatch<SetStateAction<FamilyMember[]>>;

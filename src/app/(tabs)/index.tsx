@@ -84,7 +84,9 @@ export default function HomeScreen() {
         style={styles.secondaryButton}
         onPress={() => router.push('/family' as Href)}
       >
-        <ThemedText style={styles.secondaryButtonText}>家族タブを開く</ThemedText>
+        <ThemedText style={styles.secondaryButtonText}>
+          家族プロフィールを編集
+        </ThemedText>
       </Pressable>
     </>
   );

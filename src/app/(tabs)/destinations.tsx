@@ -1,3 +1,4 @@
+import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,12 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { buildSpotsUrl } from '@/constants/api';
-import {
-  AICHI_CITIES,
-  DEFAULT_PREFECTURE,
-} from '@/constants/regions';
+import { AICHI_CITIES, DEFAULT_PREFECTURE } from '@/constants/regions';
 import { BottomTabInset } from '@/constants/theme';
+import { useFamily } from '@/contexts/family-context';
+import { useHistory } from '@/contexts/history-context';
 import type { SpotListItem, SpotsListResponse } from '@/types/spot-list';
+import {
+  averageMemberRatings,
+  latestVisitForSpot,
+  visitCountForSpot,
+} from '@/types/spot-history';
 import { sortSpotsByName } from '@/utils/spot-list-filter';
 
 export default function DestinationsScreen() {
@@ -27,6 +32,8 @@ export default function DestinationsScreen() {
   const [citiesFromApi, setCitiesFromApi] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { spotHistories } = useHistory();
+  const { familyProfiles } = useFamily();
 
   const cityOptions =
     citiesFromApi.length > 0 ? citiesFromApi : [...AICHI_CITIES];
@@ -62,7 +69,8 @@ export default function DestinationsScreen() {
     } catch (err) {
       const message =
         err instanceof Error &&
-        (err.name === 'TypeError' || /Failed to fetch|Network/i.test(err.message))
+        (err.name === 'TypeError' ||
+          /Failed to fetch|Network/i.test(err.message))
           ? 'サーバーに接続できません。APIが起動しているか確認してください。'
           : err instanceof Error
             ? err.message
@@ -77,6 +85,13 @@ export default function DestinationsScreen() {
   useEffect(() => {
     void loadSpots();
   }, [loadSpots]);
+
+  function openHistoryEditor(spot: SpotListItem) {
+    router.push({
+      pathname: '/spot-history-edit',
+      params: { spotId: spot.id, spotName: spot.name },
+    } as unknown as Href);
+  }
 
   const content = (
     <>
@@ -147,20 +162,53 @@ export default function DestinationsScreen() {
       ) : null}
 
       {!loading && !error
-        ? spots.map((spot) => (
-            <ThemedView key={spot.id} style={styles.spotCard}>
-              <ThemedText style={styles.spotName}>{spot.name}</ThemedText>
-              <ThemedText style={styles.spotMeta}>
-                {[spot.city, spot.category].filter(Boolean).join(' · ')}
-              </ThemedText>
-              {spot.address ? (
-                <ThemedText style={styles.spotAddress}>{spot.address}</ThemedText>
-              ) : null}
-              <ThemedText style={styles.visitHint}>
-                訪問・評価は次のステップで追加します
-              </ThemedText>
-            </ThemedView>
-          ))
+        ? spots.map((spot) => {
+            const count = visitCountForSpot(spotHistories, spot.id);
+            const latest = latestVisitForSpot(spotHistories, spot.id);
+            const familyAvg = latest
+              ? averageMemberRatings(latest.memberRatings)
+              : null;
+            const memberLines =
+              latest?.memberRatings.map((row) => {
+                const name =
+                  familyProfiles.find((member) => member.id === row.memberId)
+                    ?.name ?? row.memberId;
+                return `${name}:${row.rating}`;
+              }) ?? [];
+
+            return (
+              <Pressable key={spot.id} onPress={() => openHistoryEditor(spot)}>
+                <ThemedView style={styles.spotCard}>
+                  <ThemedText style={styles.spotName}>{spot.name}</ThemedText>
+                  <ThemedText style={styles.spotMeta}>
+                    {[spot.city, spot.category].filter(Boolean).join(' · ')}
+                  </ThemedText>
+                  {spot.address ? (
+                    <ThemedText style={styles.spotAddress}>
+                      {spot.address}
+                    </ThemedText>
+                  ) : null}
+                  {count > 0 && latest ? (
+                    <>
+                      <ThemedText style={styles.visitInfo}>
+                        訪問{count}回 · 直近 {latest.visitedOn}
+                        {familyAvg != null ? ` · 平均 ${familyAvg}` : ''}
+                      </ThemedText>
+                      {memberLines.length > 0 ? (
+                        <ThemedText style={styles.visitInfo}>
+                          評価：{memberLines.join(' / ')}
+                        </ThemedText>
+                      ) : null}
+                    </>
+                  ) : (
+                    <ThemedText style={styles.visitHint}>
+                      タップして訪問・評価を記録
+                    </ThemedText>
+                  )}
+                </ThemedView>
+              </Pressable>
+            );
+          })
         : null}
     </>
   );
@@ -190,16 +238,9 @@ export default function DestinationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scroll: {
-    flex: 1,
-    width: '100%',
-  },
-  safeArea: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  scroll: { flex: 1, width: '100%' },
+  safeArea: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 32,
@@ -210,10 +251,7 @@ const styles = StyleSheet.create({
     maxWidth: 800,
     alignSelf: 'center',
   },
-  title: {
-    textAlign: 'center',
-    marginBottom: 8,
-  },
+  title: { textAlign: 'center', marginBottom: 8 },
   filterCard: {
     width: '100%',
     padding: 16,
@@ -221,16 +259,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     gap: 8,
   },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  filterLabel: { fontSize: 14, fontWeight: 'bold', marginTop: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -239,30 +269,11 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     backgroundColor: '#ffffff',
   },
-  chipSelected: {
-    borderColor: '#2563eb',
-    backgroundColor: '#2563eb',
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  chipTextSelected: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  centerBlock: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 24,
-  },
-  meta: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
+  chipSelected: { borderColor: '#2563eb', backgroundColor: '#2563eb' },
+  chipText: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  chipTextSelected: { fontSize: 14, fontWeight: '600', color: '#ffffff' },
+  centerBlock: { alignItems: 'center', gap: 8, paddingVertical: 24 },
+  meta: { fontSize: 14, color: '#6b7280', textAlign: 'center' },
   spotCard: {
     width: '100%',
     padding: 16,
@@ -270,23 +281,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     gap: 4,
   },
-  spotName: {
-    fontSize: 17,
-    fontWeight: 'bold',
-  },
-  spotMeta: {
-    fontSize: 14,
-    color: '#4b5563',
-  },
-  spotAddress: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  visitHint: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#9ca3af',
-  },
+  spotName: { fontSize: 17, fontWeight: 'bold' },
+  spotMeta: { fontSize: 14, color: '#4b5563' },
+  spotAddress: { fontSize: 13, color: '#6b7280' },
+  visitInfo: { marginTop: 4, fontSize: 13, color: '#2563eb' },
+  visitHint: { marginTop: 6, fontSize: 12, color: '#9ca3af' },
   retryButton: {
     marginTop: 8,
     paddingVertical: 12,
@@ -294,9 +293,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     alignItems: 'center',
   },
-  retryButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  retryButtonText: { color: '#ffffff', fontWeight: 'bold', fontSize: 16 },
 });

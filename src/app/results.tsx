@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { RECOMMENDATIONS_URL } from '@/constants/api';
 import { MaxContentWidth } from '@/constants/theme';
 import { useFamily } from '@/contexts/family-context';
+import { useHistory } from '@/contexts/history-context';
 import { useOuting, WEATHER_LABELS } from '@/contexts/outing-context';
 import {
   parseRecommendationResponse,
@@ -177,6 +178,7 @@ export default function ResultsScreen() {
     weather,
   } = useOuting();
   const { familyProfiles, selectedMemberIds } = useFamily();
+  const { spotHistories } = useHistory();
 
   const selectedMembers = familyProfiles.filter((member) =>
     selectedMemberIds.includes(member.id)
@@ -222,6 +224,14 @@ export default function ResultsScreen() {
           specialRequests,
         },
         participants,
+        history: spotHistories.map((entry) => ({
+          spotId: entry.spotId,
+          visitedOn: entry.visitedOn,
+          wantAgain: entry.wantAgain,
+          participantIds: entry.participantIds,
+          memberRatings: entry.memberRatings,
+          note: entry.note,
+        })),
       };
       // 指定なし: omit weather so ScenarioFilter skips rain scoring.
       if (weather.trim() !== '') {
@@ -279,6 +289,7 @@ export default function ResultsScreen() {
     weather,
     familyProfiles,
     selectedMemberIds,
+    spotHistories,
   ]);
 
   useEffect(() => {
@@ -305,7 +316,7 @@ export default function ResultsScreen() {
             </ThemedText>
 
             <ThemedView style={styles.card}>
-              <ThemedText style={styles.sectionTitle}>今日の条件</ThemedText>
+              <ThemedText style={styles.sectionTitle}>おでかけ条件</ThemedText>
               <ThemedText>
                 {startTime}〜{endTime}
               </ThemedText>

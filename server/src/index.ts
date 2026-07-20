@@ -23,6 +23,11 @@ import { validateRecommendationBusinessRules } from './recommendation-business-v
 import { buildConstraintEnvelope } from './constraints/scenarioProfiles';
 import type { ConstraintEnvelope } from './constraints/types';
 import type { SpotCandidate } from './models/SpotCandidate';
+import {
+  buildHistoryPromptSummary,
+  formatHistoryPromptSummarySection,
+} from './history/buildHistoryPromptSummary';
+import type { HistoryPromptSummary } from './history/types';
 import { SpotService } from './services/SpotService';
 import {
   RelaxedPlanPipelineError,
@@ -321,6 +326,7 @@ type BuildRecommendationPromptOptions = {
   strictEnvelope?: ConstraintEnvelope;
   /** ScenarioFilter reasons keyed by spot id (optional Prompt enrichment). */
   scoredById?: Map<string, ScoredSpotCandidate>;
+  historySummary?: HistoryPromptSummary;
 };
 
 type RelaxedScenarioId = Exclude<RecommendationPromptMode, 'strict'>;
@@ -599,6 +605,16 @@ export function buildRecommendationPrompt(
       ? ['', '## 参考情報（取得済みの場合のみ）', ...enrichmentLines]
       : [];
 
+  const historySection = formatHistoryPromptSummarySection(
+    promptOptions.historySummary ?? {
+      recentVisits: [],
+      highlyRatedPreferences: [],
+      lowRatedPreferences: [],
+    }
+  );
+  const historyPromptBlock =
+    historySection.length > 0 ? ['', ...historySection] : [];
+
   return [
     '## 役割',
     'あなたは日本一優秀な家族向けコンシェルジュです。',
@@ -656,6 +672,7 @@ export function buildRecommendationPrompt(
     `- 移動手段: ${envelope.transport}`,
     `- 特別な要望: ${conditions.specialRequests || 'なし'}`,
     ...enrichmentSection,
+    ...historyPromptBlock,
     ...formatCandidateSpotsSection(
       candidateSpots,
       promptOptions.scoredById
@@ -1096,7 +1113,8 @@ async function generateRelaxedPlanEntry(
   participants: FamilyMemberProfile[],
   enrichment: RecommendationEnrichment,
   candidateSpots: SpotCandidate[],
-  historyVisits: RecommendationHistoryVisit[] = []
+  historyVisits: RecommendationHistoryVisit[] = [],
+  historySummary?: HistoryPromptSummary
 ): Promise<RelaxedPlanEntry> {
   const envelope = buildConstraintEnvelope(scenarioId, conditions);
 
@@ -1131,7 +1149,7 @@ async function generateRelaxedPlanEntry(
     participants,
     enrichment,
     orderedSpots,
-    { mode: scenarioId, strictEnvelope, scoredById }
+    { mode: scenarioId, strictEnvelope, scoredById, historySummary }
   );
 
   const parsed = await fetchOpenAiJsonDraft(
@@ -1210,7 +1228,8 @@ async function generateRelaxedPlans(
   participants: FamilyMemberProfile[],
   enrichment: RecommendationEnrichment,
   candidateSpots: SpotCandidate[],
-  historyVisits: RecommendationHistoryVisit[] = []
+  historyVisits: RecommendationHistoryVisit[] = [],
+  historySummary?: HistoryPromptSummary
 ): Promise<RelaxedPlanEntry[]> {
   const relaxedPlans: RelaxedPlanEntry[] = [];
 
@@ -1223,7 +1242,8 @@ async function generateRelaxedPlans(
         participants,
         enrichment,
         candidateSpots,
-        historyVisits
+        historyVisits,
+        historySummary
       )
     );
     console.log('Budget relaxed business validation passed');
@@ -1240,7 +1260,8 @@ async function generateRelaxedPlans(
         participants,
         enrichment,
         candidateSpots,
-        historyVisits
+        historyVisits,
+        historySummary
       )
     );
     console.log('Time relaxed business validation passed');
@@ -1373,6 +1394,16 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     console.log(`History visits received: ${historyVisits.length}`);
   }
 
+  const historySummary = buildHistoryPromptSummary(
+    historyVisits,
+    loaded.spots.map((spot) => ({
+      id: spot.id,
+      name: spot.name,
+      category: spot.category,
+    })),
+    participants.map((member) => ({ id: member.id, name: member.name }))
+  );
+
   const { orderedSpots, scoredById } = prepareCandidateSpotsForPrompt(
     loaded.spots,
     strictEnvelope,
@@ -1390,7 +1421,7 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     participants,
     enrichment,
     orderedSpots,
-    { scoredById }
+    { scoredById, historySummary }
   );
   console.log('=== recommendation prompt ===');
   console.log(prompt);
@@ -1466,7 +1497,8 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     participants,
     enrichment,
     loaded.spots,
-    historyVisits
+    historyVisits,
+    historySummary
   );
 
   inspectPlanSimilarity([

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -42,7 +42,17 @@ export type ProductionSpotsLoadResult = {
  * loadSampleSpots() remains for inspection/tests.
  */
 export class SpotService {
-  private readonly dataRoot = path.join(__dirname, '../data');
+  // Works both when running from TS sources (tsx) and from compiled dist/.
+  // - tsx: __dirname = server/src/services => ../data = server/src/data (exists)
+  // - dist: __dirname = dist/services => ../data = dist/data (may not exist) => fallback to CWD/src/data
+  private readonly dataRoot = (() => {
+    const fromDirname = path.join(__dirname, '../data');
+    if (existsSync(fromDirname)) {
+      return fromDirname;
+    }
+    // dist/services -> dist -> (server root) -> src/data
+    return path.join(__dirname, '../../src/data');
+  })();
 
   /**
    * Load local sample spots (may include fictional places).

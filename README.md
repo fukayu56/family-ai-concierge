@@ -90,6 +90,71 @@ API URL は `src/constants/api.ts` の1か所のみです。未設定時は `htt
 
 ---
 
+## Web公開（Render + EAS Hosting）準備
+
+この項目は「公開手順の前提条件」と「必要な設定値」をまとめたものです。
+以降のデプロイ実行（Render/EAS へのログイン操作や、デプロイ予約）は行いません。
+
+### Render（Express APIサーバー）
+
+Express API サーバーは `server/` 配下をデプロイします。
+
+Render 設定（例）
+
+Root Directory:
+`server`
+
+Build Command:
+`npm ci`
+
+Start Command:
+`npm run start:prod`
+
+Health Check Path:
+`/health`
+
+Render の環境変数
+
+- `OPENAI_API_KEY`（必須、サーバーのみ）
+- `PORT`（Render が自動で設定することが多い。コードは `process.env.PORT` を優先します）
+- `ALLOWED_ORIGINS`（必須推奨。カンマ区切りで、アクセス元の Origin を指定）
+  - 例: `https://your-eas-domain.com,http://localhost:8081`
+
+注意:
+- CORS は無条件許可ではなく、`ALLOWED_ORIGINS` に一致した Origin のみ許可します（完全一致、scheme+host+port）。
+- クライアント（Expo Web）へ OpenAI APIキーは一切置きません。
+- 公開URL（EAS Hosting のドメイン）を変更する場合は、`ALLOWED_ORIGINS` と `EXPO_PUBLIC_API_BASE_URL` の両方を更新してください。
+
+### EAS Hosting（Expo Web）
+
+Expo Web は `app.json` の `web.output: "static"` のため、EAS Hosting へ静的配信します。
+
+EAS 側で設定する環境変数
+
+- `EXPO_PUBLIC_API_BASE_URL`（必須）
+  - 値: Render の API ベースURL（例: `https://your-render-api.onrender.com`）
+  - 末尾スラッシュ有無はコード側で吸収します
+
+注意:
+- `EXPO_PUBLIC_` が付くのは公開前提の変数のみです。`OPENAI_API_KEY` は絶対に EAS 側に置きません。
+
+### リロード時の 404（Expo Router）
+
+`web.output: "static"` ではルートごとの `index.html` が生成されます。
+ただし、ホスティング設定によっては `/destinations` 等へ直接アクセスしたときに 404 になることがあります。
+デプロイ後にスマホブラウザで「各タブの画面まで移動 -> その画面を再読み込み」を行い、必要ならホスティング側の SPA fallback / rewrite 設定を追加してください。
+
+### AsyncStorage 永続化
+
+このアプリの永続化は `@react-native-async-storage/async-storage` を使用しています。
+Web ではブラウザのストレージ（localStorage）に保存されるため、リロード後もデータが残る想定です。
+
+### デプロイ後の動作確認（推奨）
+
+- スマホブラウザで Web を開く（ホーム/行先リスト/家族の 3タブが操作できる）
+- 各タブの画面を再読み込みして 404 が起きないことを確認
+- 参加者選択 → AI 提案 → 行先リスト表示 → 訪問記録保存 → リロード後も表示が残ることを確認
+
 ## Get started（テンプレート）
 
 1. Install dependencies: `npm install`

@@ -1273,9 +1273,31 @@ async function generateRelaxedPlans(
 }
 
 const app = express();
-const PORT = 3001;
+const PORT = Number.parseInt(process.env.PORT ?? '3001', 10) || 3001;
 
-app.use(cors());
+// CORS: allow only explicit origins (comma-separated), avoid "allow all" in production.
+// - Local dev default: http://localhost:8081 and http://127.0.0.1:8081
+// - Prod: set ALLOWED_ORIGINS (e.g. "https://your-eas-domain.com,https://preview-your-eas-domain.com")
+const allowedOriginsFromEnv = (process.env.ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
+const defaultAllowedOrigins = ['http://localhost:8081', 'http://127.0.0.1:8081'];
+const allowedOrigins =
+  allowedOriginsFromEnv.length > 0 ? allowedOriginsFromEnv : defaultAllowedOrigins;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Non-browser requests (e.g. curl/health checks) have no Origin header.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      callback(null, allowedOrigins.includes(origin));
+    },
+  })
+);
 app.use(express.json());
 
 app.get('/health', (_req: Request, res: Response) => {
@@ -1522,6 +1544,6 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
   res.json(apiResponse);
 });
 
-app.listen(PORT, () => {
-  console.log(`Family AI Concierge API listening on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Family AI Concierge API listening on port ${PORT}`);
 });

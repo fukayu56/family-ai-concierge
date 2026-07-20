@@ -18,6 +18,21 @@ npm run dev
 - `GET /health` … 疎通確認 `{ "ok": true }`
 - `POST /api/recommendations` … strict 3プラン + 任意の `relaxedPlans` を返す
 
+## 本番（Render 等）
+
+本番では `npm run build` → `npm run start:prod` を想定しています。
+
+環境変数（例）
+
+- `OPENAI_API_KEY`（必須）
+- `PORT`（Render が自動で設定することが多い。コードは `process.env.PORT` を優先します）
+- `ALLOWED_ORIGINS`（CORS 許可 Origin のカンマ区切り）
+  - 例: `https://your-eas-domain.com,http://localhost:8081`
+
+注意:
+- CORS は無条件許可ではなく、`ALLOWED_ORIGINS` に一致した Origin のみ許可します（完全一致、scheme+host+port）。
+- クライアント側へ OPENAI APIキーは送らないでください（サーバーのみ利用します）。
+
 ## 実機から接続するとき
 
 スマホと PC を同一 Wi-Fi にし、PC の LAN IP をクライアント側の

@@ -1,22 +1,167 @@
-import { Platform, ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { buildSpotsUrl } from '@/constants/api';
+import {
+  AICHI_CITIES,
+  DEFAULT_PREFECTURE,
+} from '@/constants/regions';
 import { BottomTabInset } from '@/constants/theme';
+import type { SpotListItem, SpotsListResponse } from '@/types/spot-list';
+import { sortSpotsByName } from '@/utils/spot-list-filter';
 
-/**
- * Phase A placeholder. Spot list UI arrives in Phase D.
- */
 export default function DestinationsScreen() {
+  const [prefecture] = useState(DEFAULT_PREFECTURE);
+  const [city, setCity] = useState<string>('');
+  const [spots, setSpots] = useState<SpotListItem[]>([]);
+  const [citiesFromApi, setCitiesFromApi] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const cityOptions =
+    citiesFromApi.length > 0 ? citiesFromApi : [...AICHI_CITIES];
+
+  const loadSpots = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = buildSpotsUrl({
+        prefecture,
+        city: city || undefined,
+      });
+      const response = await fetch(url);
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof data === 'object' &&
+          data !== null &&
+          'error' in data &&
+          typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error: string }).error
+            : `API error: ${response.status}`;
+        throw new Error(message);
+      }
+      const body = data as SpotsListResponse;
+      if (!Array.isArray(body.spots)) {
+        throw new Error('スポット一覧の形式が不正です');
+      }
+      setSpots(sortSpotsByName(body.spots));
+      if (Array.isArray(body.meta?.cities) && body.meta.cities.length > 0) {
+        setCitiesFromApi(body.meta.cities);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error &&
+        (err.name === 'TypeError' || /Failed to fetch|Network/i.test(err.message))
+          ? 'サーバーに接続できません。APIが起動しているか確認してください。'
+          : err instanceof Error
+            ? err.message
+            : 'スポット一覧の取得に失敗しました';
+      setError(message);
+      setSpots([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [prefecture, city]);
+
+  useEffect(() => {
+    void loadSpots();
+  }, [loadSpots]);
+
   const content = (
     <>
       <ThemedText type="title" style={styles.title}>
         行先リスト
       </ThemedText>
-      <ThemedText style={styles.body}>
-        スポット一覧は次のステップで追加します。都道府県・市区町村での絞り込み、訪問評価の表示に対応予定です。
-      </ThemedText>
+
+      <ThemedView style={styles.filterCard}>
+        <ThemedText style={styles.filterLabel}>都道府県</ThemedText>
+        <View style={styles.chipRow}>
+          <View style={[styles.chip, styles.chipSelected]}>
+            <ThemedText style={styles.chipTextSelected}>{prefecture}</ThemedText>
+          </View>
+        </View>
+
+        <ThemedText style={styles.filterLabel}>市区町村</ThemedText>
+        <View style={styles.chipRow}>
+          <Pressable
+            style={[styles.chip, city === '' ? styles.chipSelected : null]}
+            onPress={() => setCity('')}
+          >
+            <ThemedText
+              style={city === '' ? styles.chipTextSelected : styles.chipText}
+            >
+              すべて
+            </ThemedText>
+          </Pressable>
+          {cityOptions.map((option) => {
+            const selected = city === option;
+            return (
+              <Pressable
+                key={option}
+                style={[styles.chip, selected ? styles.chipSelected : null]}
+                onPress={() => setCity(option)}
+              >
+                <ThemedText
+                  style={selected ? styles.chipTextSelected : styles.chipText}
+                >
+                  {option}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ThemedView>
+
+      {loading ? (
+        <View style={styles.centerBlock}>
+          <ActivityIndicator />
+          <ThemedText style={styles.meta}>読み込み中...</ThemedText>
+        </View>
+      ) : null}
+
+      {error ? (
+        <ThemedView style={styles.filterCard}>
+          <ThemedText>{error}</ThemedText>
+          <Pressable style={styles.retryButton} onPress={() => void loadSpots()}>
+            <ThemedText style={styles.retryButtonText}>再試行</ThemedText>
+          </Pressable>
+        </ThemedView>
+      ) : null}
+
+      {!loading && !error ? (
+        <ThemedText style={styles.meta}>
+          {spots.length}件
+          {city ? `（${city}）` : '（全市）'}
+        </ThemedText>
+      ) : null}
+
+      {!loading && !error
+        ? spots.map((spot) => (
+            <ThemedView key={spot.id} style={styles.spotCard}>
+              <ThemedText style={styles.spotName}>{spot.name}</ThemedText>
+              <ThemedText style={styles.spotMeta}>
+                {[spot.city, spot.category].filter(Boolean).join(' · ')}
+              </ThemedText>
+              {spot.address ? (
+                <ThemedText style={styles.spotAddress}>{spot.address}</ThemedText>
+              ) : null}
+              <ThemedText style={styles.visitHint}>
+                訪問・評価は次のステップで追加します
+              </ThemedText>
+            </ThemedView>
+          ))
+        : null}
     </>
   );
 
@@ -59,16 +204,99 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 32,
     paddingBottom: BottomTabInset + 40,
-    gap: 16,
-    alignItems: 'center',
+    gap: 12,
+    alignItems: 'stretch',
+    width: '100%',
+    maxWidth: 800,
+    alignSelf: 'center',
   },
   title: {
     textAlign: 'center',
+    marginBottom: 8,
   },
-  body: {
+  filterCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+  },
+  chipSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#2563eb',
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  chipTextSelected: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  centerBlock: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 24,
+  },
+  meta: {
+    fontSize: 14,
+    color: '#6b7280',
     textAlign: 'center',
+  },
+  spotCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    gap: 4,
+  },
+  spotName: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  spotMeta: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  spotAddress: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  visitHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
     fontSize: 16,
-    lineHeight: 24,
-    maxWidth: 480,
   },
 });

@@ -40,6 +40,13 @@ import {
   takePromptCandidates,
   type ScoredSpotCandidate,
 } from './filters/ScenarioFilter';
+import {
+  applyRecentVisitPenalty,
+  buildDaysSinceBySpotId,
+  collectWantAgainSpotIds,
+  resortScoredSpots,
+  shouldSoftenRecentVisitPenalty,
+} from './filters/applyRecentVisitPenalty';
 import { selectDiversePromptCandidates } from './filters/selectDiversePromptCandidates';
 import { inspectScenarioFilterResult } from './filters/inspectScenarioFilter';
 
@@ -98,6 +105,12 @@ function prepareCandidateSpotsForPrompt(
     participantAges?: Array<number | null>;
     logLabel?: string;
     log?: boolean;
+    /** Visit records for soft recent-visit penalty (spotId-based only). */
+    historyVisits?: Array<{
+      spotId: string;
+      visitedOn: string;
+      wantAgain?: boolean;
+    }>;
   } = {}
 ): { orderedSpots: SpotCandidate[]; scoredById: Map<string, ScoredSpotCandidate> } {
   const context = buildScenarioFilterContextFromEnvelope(envelope, {
@@ -108,7 +121,22 @@ function prepareCandidateSpotsForPrompt(
   // AbsoluteFilter: pass-through (TODO)
   const afterAbsolute = spots;
 
-  const ranked = applyScenarioFilter(afterAbsolute, context);
+  let ranked = applyScenarioFilter(afterAbsolute, context);
+
+  if (options.historyVisits && options.historyVisits.length > 0) {
+    const daysSinceBySpotId = buildDaysSinceBySpotId(options.historyVisits);
+    const wantAgainSpotIds = collectWantAgainSpotIds(options.historyVisits);
+    const soften = shouldSoftenRecentVisitPenalty(afterAbsolute.length);
+    ranked = resortScoredSpots(
+      applyRecentVisitPenalty(ranked, {
+        daysSinceBySpotId,
+        wantAgainSpotIds,
+        softenForScarceCandidates: soften,
+      }),
+      afterAbsolute
+    );
+  }
+
   const rainy = detectRainyWeather(options.weather);
   // Diversify from the full ranked list first, then soft-cap at 20.
   // (Do not slice to 20 before diversity — parks would monopolize the pool.)
@@ -217,11 +245,70 @@ export type RecommendationEnrichment = {
   specialEvents?: string;
 };
 
+/** Visit history sent by the client (spotId-based). Display names ignored for scoring. */
+export type RecommendationHistoryVisit = {
+  spotId: string;
+  visitedOn: string;
+  wantAgain?: boolean;
+  memberRatings?: Array<{ memberId: string; rating: number }>;
+  participantIds?: string[];
+  note?: string;
+};
+
 /** Request body from the Expo app for plan recommendations. */
 export type RecommendationRequest = {
   conditions: OutingConditions;
   participants: FamilyMemberProfile[];
+  /** Optional visit history for soft recent-visit penalty (Phase H) and prompt summary (Phase G). */
+  history?: RecommendationHistoryVisit[];
 } & RecommendationEnrichment;
+
+function normalizeHistoryVisits(
+  history: unknown
+): RecommendationHistoryVisit[] {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  const result: RecommendationHistoryVisit[] = [];
+  for (const entry of history) {
+    if (typeof entry !== 'object' || entry === null) {
+      continue;
+    }
+    const row = entry as Record<string, unknown>;
+    if (typeof row.spotId !== 'string' || typeof row.visitedOn !== 'string') {
+      continue;
+    }
+    result.push({
+      spotId: row.spotId,
+      visitedOn: row.visitedOn,
+      wantAgain: row.wantAgain === true,
+      participantIds: Array.isArray(row.participantIds)
+        ? row.participantIds.filter((id): id is string => typeof id === 'string')
+        : undefined,
+      memberRatings: Array.isArray(row.memberRatings)
+        ? row.memberRatings.flatMap((rating) => {
+            if (typeof rating !== 'object' || rating === null) {
+              return [];
+            }
+            const r = rating as Record<string, unknown>;
+            if (
+              typeof r.memberId !== 'string' ||
+              typeof r.rating !== 'number' ||
+              !Number.isInteger(r.rating) ||
+              r.rating < 1 ||
+              r.rating > 5
+            ) {
+              return [];
+            }
+            return [{ memberId: r.memberId, rating: r.rating }];
+          })
+        : undefined,
+      note: typeof row.note === 'string' ? row.note : undefined,
+    });
+  }
+  // Cap to avoid oversized requests.
+  return result.slice(0, 50);
+}
 
 function hasEnrichmentValue(value: string | undefined): value is string {
   return value != null && value.trim() !== '';
@@ -1008,7 +1095,8 @@ async function generateRelaxedPlanEntry(
   conditions: OutingConditions,
   participants: FamilyMemberProfile[],
   enrichment: RecommendationEnrichment,
-  candidateSpots: SpotCandidate[]
+  candidateSpots: SpotCandidate[],
+  historyVisits: RecommendationHistoryVisit[] = []
 ): Promise<RelaxedPlanEntry> {
   const envelope = buildConstraintEnvelope(scenarioId, conditions);
 
@@ -1033,6 +1121,7 @@ async function generateRelaxedPlanEntry(
       participantAges: participants.map((member) => member.age),
       logLabel: `ScenarioFilter (${scenarioId})`,
       log: false,
+      historyVisits,
     }
   );
 
@@ -1120,7 +1209,8 @@ async function generateRelaxedPlans(
   conditions: OutingConditions,
   participants: FamilyMemberProfile[],
   enrichment: RecommendationEnrichment,
-  candidateSpots: SpotCandidate[]
+  candidateSpots: SpotCandidate[],
+  historyVisits: RecommendationHistoryVisit[] = []
 ): Promise<RelaxedPlanEntry[]> {
   const relaxedPlans: RelaxedPlanEntry[] = [];
 
@@ -1132,7 +1222,8 @@ async function generateRelaxedPlans(
         conditions,
         participants,
         enrichment,
-        candidateSpots
+        candidateSpots,
+        historyVisits
       )
     );
     console.log('Budget relaxed business validation passed');
@@ -1148,7 +1239,8 @@ async function generateRelaxedPlans(
         conditions,
         participants,
         enrichment,
-        candidateSpots
+        candidateSpots,
+        historyVisits
       )
     );
     console.log('Time relaxed business validation passed');
@@ -1276,6 +1368,11 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     specialEvents: body.specialEvents,
   };
 
+  const historyVisits = normalizeHistoryVisits(body.history);
+  if (historyVisits.length > 0) {
+    console.log(`History visits received: ${historyVisits.length}`);
+  }
+
   const { orderedSpots, scoredById } = prepareCandidateSpotsForPrompt(
     loaded.spots,
     strictEnvelope,
@@ -1283,6 +1380,7 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
       weather: enrichment.weather,
       participantAges: participants.map((member) => member.age),
       logLabel: 'ScenarioFilter (strict)',
+      historyVisits,
     }
   );
 
@@ -1367,7 +1465,8 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     conditions,
     participants,
     enrichment,
-    loaded.spots
+    loaded.spots,
+    historyVisits
   );
 
   inspectPlanSimilarity([

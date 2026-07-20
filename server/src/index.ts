@@ -1169,6 +1169,62 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+/**
+ * Destination list data — same production spots as recommendations.
+ * Query: ?prefecture=愛知県&city=刈谷市 (both optional; city filters by SpotCandidate.city)
+ */
+app.get('/api/spots', (req: Request, res: Response) => {
+  const prefectureRaw =
+    typeof req.query.prefecture === 'string' ? req.query.prefecture.trim() : '';
+  const cityRaw =
+    typeof req.query.city === 'string' ? req.query.city.trim() : '';
+
+  // Current dataset is Aichi-only. Reject unknown prefectures early.
+  const prefecture = prefectureRaw === '' ? '愛知県' : prefectureRaw;
+  if (prefecture !== '愛知県') {
+    res.status(400).json({ error: '対応していない都道府県です' });
+    return;
+  }
+
+  try {
+    const loaded = spotService.loadProductionSpots();
+    let spots = loaded.spots;
+    if (cityRaw !== '') {
+      spots = spots.filter((spot) => spot.city === cityRaw);
+    }
+
+    const cities = Object.keys(loaded.byCity).sort((a, b) =>
+      a.localeCompare(b, 'ja')
+    );
+
+    const listItems = spots.map((spot) => ({
+      id: spot.id,
+      name: spot.name,
+      category: spot.category,
+      city: spot.city,
+      address: spot.address,
+      description: spot.description,
+      tags: spot.tags,
+      indoor: spot.indoor,
+      parking: spot.parking,
+      costLevel: spot.costLevel,
+      recommendedAge: spot.recommendedAge,
+    }));
+
+    res.json({
+      spots: listItems,
+      meta: {
+        prefecture,
+        cities,
+        total: listItems.length,
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/spots failed', error);
+    res.status(500).json({ error: 'スポット一覧の取得に失敗しました' });
+  }
+});
+
 app.post('/api/recommendations', async (req: Request, res: Response) => {
   const body = req.body as RecommendationRequest;
   const conditions = body.conditions ?? {

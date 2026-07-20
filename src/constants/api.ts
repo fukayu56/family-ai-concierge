@@ -15,4 +15,19 @@ export const API_BASE_URL =
     : 'http://localhost:3001';
 
 export const RECOMMENDATIONS_URL = `${API_BASE_URL}/api/recommendations`;
+export const SPOTS_URL = `${API_BASE_URL}/api/spots`;
 export const HEALTH_URL = `${API_BASE_URL}/health`;
+
+export function buildSpotsUrl(params?: {
+  prefecture?: string;
+  city?: string;
+}): string {
+  const url = new URL(SPOTS_URL);
+  if (params?.prefecture && params.prefecture.trim() !== '') {
+    url.searchParams.set('prefecture', params.prefecture.trim());
+  }
+  if (params?.city && params.city.trim() !== '') {
+    url.searchParams.set('city', params.city.trim());
+  }
+  return url.toString();
+}

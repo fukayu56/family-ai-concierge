@@ -5,6 +5,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { FamilyProvider } from '@/contexts/family-context';
+import { HistoryProvider } from '@/contexts/history-context';
 import { OutingProvider } from '@/contexts/outing-context';
 
 SplashScreen.preventAutoHideAsync();
@@ -15,13 +16,16 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <OutingProvider>
         <FamilyProvider>
-          <AnimatedSplashOverlay />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="conditions" />
-            <Stack.Screen name="profile-edit" />
-            <Stack.Screen name="results" />
-          </Stack>
+          <HistoryProvider>
+            <AnimatedSplashOverlay />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="conditions" />
+              <Stack.Screen name="profile-edit" />
+              <Stack.Screen name="results" />
+              <Stack.Screen name="spot-history-edit" />
+            </Stack>
+          </HistoryProvider>
         </FamilyProvider>
       </OutingProvider>
     </ThemeProvider>

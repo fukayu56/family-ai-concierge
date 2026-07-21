@@ -39,6 +39,7 @@ import {
   inspectPlanSimilarity,
   logTimeRelaxationUsage,
 } from './validation/inspectPlanSimilarity';
+import { alignPlanTitleWithContent } from './validation/alignPlanTitleWithContent';
 import {
   applyScenarioFilter,
   buildScenarioFilterContextFromEnvelope,
@@ -358,6 +359,7 @@ function buildRelaxedSemanticConsistencyPromptSection(): string[] {
     '- reasonで「追加できる」「確保できる」と説明した体験は、必ずtimelineに含める',
     '- spotsにない施設や体験をreasonで実施済みとして説明しない',
     '- timelineに存在しない恐竜体験・工作体験・動物体験などをtitleへ書かない',
+    '- 家族の興味語だけを根拠にtitleへテーマを足さない（内容に根拠がある場合のみ）',
     '- title・reason・spots・timelineで、同じ中心体験を一貫した名称で表現する',
     '',
     '### 生成前の自己確認（必ず行う）',
@@ -746,10 +748,18 @@ export function buildRecommendationPrompt(
     '### title',
     'titleは抽象的な軸名だけにしない。',
     '悪い例: 「体験・発見重視」「余裕・交流重視」「安心・柔軟性重視」',
-    '良い例: 「恐竜体験で発見を楽しむプラン」「近場の公園とカフェでのんびりプラン」「屋内科学館で安心して過ごすプラン」',
+    '悪い例: 内容が科学館と公園なのに「恐竜体験で発見を楽しむプラン」（実際のスポットに恐竜がない）',
+    '良い例: 「科学体験と公園遊びを楽しむプラン」「近場の公園とカフェでのんびりプラン」「屋内科学館で安心して過ごすプラン」',
+    '',
+    '#### titleの根拠ルール（必須）',
+    '- titleは、実際に選んだspotsとtimelineの内容だけを根拠に作る',
+    '- 家族の興味・likes・favoritePlayは、実際のスポットまたは予定内容にその要素が明示される場合のみtitleへ反映する',
+    '- 恐竜・動物・水遊び・工作・乗り物・科学・自然などのテーマ語は、spots・timeline・候補スポット説明のいずれかに根拠がある場合のみ使う',
+    '- 実際の内容に存在しないテーマをtitleへ追加しない',
+    '- titleはプランの主要体験を端的に表現し、reason・spots・timelineと意味を一致させる',
     '',
     'titleには次を含める。',
-    '- 主要な体験または施設タイプ',
+    '- 主要な体験または施設タイプ（実際の内容に基づく）',
     '- その日の過ごし方',
     '- 20〜30文字程度',
     '- 3プランの違いが一目で分かる表現',
@@ -1191,7 +1201,7 @@ async function generateRelaxedPlanEntry(
   }
 
   const relaxedDraft = parsed as AiRelaxedRecommendationDraft;
-  const plan = enrichSinglePlanDraft(relaxedDraft.plans[0]);
+  let plan = enrichSinglePlanDraft(relaxedDraft.plans[0]);
 
   try {
     validatePlan(plan);
@@ -1225,6 +1235,11 @@ async function generateRelaxedPlanEntry(
         : 'Semantic consistency validation failed';
     throw new RelaxedPlanPipelineError('Semantic Consistency', message);
   }
+
+  plan = alignPlanTitleWithContent(plan, {
+    planIndex: 0,
+    spotLookup: orderedSpots,
+  }).plan;
 
   if (scenarioId === 'time_relaxed') {
     logTimeRelaxationUsage(
@@ -1559,6 +1574,16 @@ app.post('/api/recommendations', async (req: Request, res: Response) => {
     });
     return;
   }
+
+  responseBody = {
+    ...responseBody,
+    plans: responseBody.plans.map((plan, index) =>
+      alignPlanTitleWithContent(plan, {
+        planIndex: index,
+        spotLookup: orderedSpots,
+      }).plan
+    ),
+  };
 
   const relaxedPlans = await generateRelaxedPlans(
     strictEnvelope,

@@ -2,167 +2,197 @@
 
 家族のおでかけを、条件と個性から提案する Expo + Express アプリです。
 
-## 明日の実利用クイックスタート
+## 公開構成（Vercel 単独）
 
-### 1. API サーバーを起動（PC）
+Render / EAS Hosting は使いません。
+
+```
+Vercel（同一プロジェクト・同一 Origin）
+├─ Expo Web 静的配信（dist/）
+│  ├─ /
+│  ├─ /destinations
+│  ├─ /family
+│  └─ その他 Expo Router 静的ルート
+└─ Express Vercel Function（api/index.ts）
+   ├─ /health
+   ├─ /api/spots
+   └─ /api/recommendations
+```
+
+- OpenAI APIキーは **Vercel のサーバー環境変数 `OPENAI_API_KEY` のみ**
+- クライアントに `EXPO_PUBLIC_OPENAI_API_KEY` 等は **絶対に置かない**
+- 本番 Web は同一 Origin の `/api/*` を相対URLで呼びます
+
+---
+
+## ローカル起動
+
+### 1. 依存関係
+
+リポジトリは npm workspaces（`server`）です。ルートで一度入れます。
+
+```bash
+npm ci
+# または初回: npm install
+```
+
+### 2. API サーバー（PC）
 
 ```bash
 cd server
-npm install
-# server/.env に OPENAI_API_KEY=... を設定済みであること
+# server/.env に OPENAI_API_KEY=... を設定
 npm run start
+# またはルートから: npm run server:start
 ```
 
-別ターミナルで確認:
+確認:
 
 ```bash
 curl http://localhost:3001/health
+# => {"ok":true}
 ```
 
-`{"ok":true}` が返れば OK。
-
-### 2. Expo アプリを起動
+### 3. Expo アプリ
 
 ```bash
-npm install
 npx expo start
+# Web: npx expo start --web
 ```
 
-- **同じ PC のブラウザ（Web）:** 追加設定なし（`http://localhost:3001`）
-- **スマートフォン実機:** 下記「実機からAPIへ接続する」を実施
+- **同じ PC のブラウザ:** 未設定時は `http://localhost:3001` に接続
+- **本番相当の静的出力:** `npx expo export --platform web`（出力: `dist/`）
 
-### 3. 操作フロー
+### 4. 操作フロー
 
 1. ホームで参加者を選ぶ  
 2. 「おでかけ条件」で時間・予算・天気などを入力  
 3. 「AIにプランを作ってもらう」  
-4. おすすめプラン（厳守）と「条件を少し広げると」を確認  
+4. 行先リストで訪問・評価を記録  
 
 ---
 
-## 実機からAPIへ接続する
+## 実機からAPIへ接続する（ローカル開発）
 
 物理デバイスでは `localhost` はスマホ自身を指すため、**PC の LAN IP** が必要です。
 
-### 手順
+1. PC とスマホを同じ Wi-Fi に接続  
+2. PC の IPv4 を確認（例: `ipconfig`）  
+3. ルートに `.env` を作成:
 
-1. PC とスマホを **同じ Wi-Fi** に接続する  
-2. Windows で PC の IPv4 を確認する（例）:
+```env
+EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:3001
+```
 
-   ```powershell
-   ipconfig
-   ```
+4. Expo を再起動  
 
-   `ワイヤレス LAN アダプター` などの **IPv4 アドレス**（例: `192.168.1.23`）を控える。  
-   ※ IP は環境ごとに異なるため、決め打ちしない。
+API URL の解決は `src/constants/api.ts` のみです。
 
-3. プロジェクトルートに `.env` を作成（`.env.example` をコピー可）:
+優先順位:
 
-   ```env
-   EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:3001
-   ```
-
-   `192.168.x.x` を自分の PC の IPv4 に置き換える。
-
-4. **Expo を再起動**（環境変数は起動時に読み込まれます）:
-
-   ```bash
-   npx expo start
-   ```
-
-5. スマホのブラウザで先に疎通確認（任意）:
-
-   `http://<PCのIPv4>:3001/health`
-
-6. Expo Go / 開発ビルドでアプリを開き、条件入力 → 提案まで確認する。
-
-### Windows ファイアウォール
-
-実機から `/health` がタイムアウトする場合:
-
-1. Windows セキュリティ → ファイアウォール → 詳細設定  
-2. 「受信の規則」でポート **3001**（TCP）を許可する  
-3. または一時的に Node / `tsx` の受信を許可する  
-
-同一 Wi-Fi・正しい IP・3001 開放の3点を確認してください。
-
-API URL は `src/constants/api.ts` の1か所のみです。未設定時は `http://localhost:3001` にフォールバックします。
+1. `EXPO_PUBLIC_API_BASE_URL` が有効なら使用  
+2. 本番 Web ビルド（`NODE_ENV=production`）は同一 Origin の相対URL  
+3. ローカル開発は `http://localhost:3001`  
 
 ---
 
-## Web公開（Render + EAS Hosting）準備
+## Vercel デプロイ
 
-この項目は「公開手順の前提条件」と「必要な設定値」をまとめたものです。
-以降のデプロイ実行（Render/EAS へのログイン操作や、デプロイ予約）は行いません。
+### Dashboard 設定値（正確）
 
-### Render（Express APIサーバー）
+| 項目 | 値 |
+|------|-----|
+| Framework Preset | Other |
+| Root Directory | `.`（リポジトリルート） |
+| Build Command | `npx expo export --platform web` |
+| Output Directory | `dist` |
+| Install Command | `npm ci` |
+| Node.js | 20.x 以上推奨 |
 
-Express API サーバーは `server/` 配下をデプロイします。
+`vercel.json` が同梱されているため、Dashboard 未入力でもファイル設定が使われます。矛盾する場合は `vercel.json` を正としてください。
 
-Render 設定（例）
+### 登録する環境変数
 
-Root Directory:
-`server`
+| 変数 | 必須 | 説明 |
+|------|------|------|
+| `OPENAI_API_KEY` | **必須** | サーバー Function のみ。Production / Preview に設定 |
+| `EXPO_PUBLIC_API_BASE_URL` | **不要（本番）** | 同一 Origin のため未設定でよい |
+| `ALLOWED_ORIGINS` | 任意 | 追加の CORS Origin（カンマ区切り）。未設定でも Vercel ホストとローカル既定を許可 |
+| `OPENAI_MODEL` | 任意 | 既定 `gpt-4o-mini` |
+| `NODE_ENV` | 通常不要 | Vercel が設定 |
 
-Build Command:
-`npm ci`
+### Preview / Production
 
-Start Command:
-`npm run start:prod`
+1. GitHub リポジトリを Vercel に Import  
+2. 上記設定と `OPENAI_API_KEY` を登録  
+3. Deploy  
+4. Preview URL または Production URL で確認  
 
-Health Check Path:
-`/health`
+CLI を使う場合は、アカウントログインが必要です（このリポジトリではログイン操作は手動）。
 
-Render の環境変数
+```bash
+# ログインが必要になったらここで停止し、ユーザー操作へ
+npx vercel
+npx vercel --prod
+```
 
-- `OPENAI_API_KEY`（必須、サーバーのみ）
-- `PORT`（Render が自動で設定することが多い。コードは `process.env.PORT` を優先します）
-- `ALLOWED_ORIGINS`（必須推奨。カンマ区切りで、アクセス元の Origin を指定）
-  - 例: `https://your-eas-domain.com,http://localhost:8081`
+### Function timeout
 
-注意:
-- CORS は無条件許可ではなく、`ALLOWED_ORIGINS` に一致した Origin のみ許可します（完全一致、scheme+host+port）。
-- クライアント（Expo Web）へ OpenAI APIキーは一切置きません。
-- 公開URL（EAS Hosting のドメイン）を変更する場合は、`ALLOWED_ORIGINS` と `EXPO_PUBLIC_API_BASE_URL` の両方を更新してください。
+- `/api/recommendations` は OpenAI を最大3回呼ぶため時間がかかります（数十秒〜2分程度）
+- `vercel.json` で Hobby 上限の **`maxDuration: 300`（秒）** を `api/index.ts` に設定しています
+- タイムアウト時はクライアント既存のエラー表示（再試行）を利用します
 
-### EAS Hosting（Expo Web）
+### スポットデータ bundle 漏れの確認
 
-Expo Web は `app.json` の `web.output: "static"` のため、EAS Hosting へ静的配信します。
+デプロイ後:
 
-EAS 側で設定する環境変数
+```bash
+curl https://<your-app>.vercel.app/api/spots
+```
 
-- `EXPO_PUBLIC_API_BASE_URL`（必須）
-  - 値: Render の API ベースURL（例: `https://your-render-api.onrender.com`）
-  - 末尾スラッシュ有無はコード側で吸収します
+- `meta.total` が **247** 前後であること  
+- `sample-*` id が無いこと  
+- `?city=刈谷市` で **25** 件前後であること  
 
-注意:
-- `EXPO_PUBLIC_` が付くのは公開前提の変数のみです。`OPENAI_API_KEY` は絶対に EAS 側に置きません。
+ローカル同等チェック:
 
-### リロード時の 404（Expo Router）
+```bash
+cd server
+npx tsx src/validation/runProductionSpotsCheck.ts
+```
 
-`web.output: "static"` ではルートごとの `index.html` が生成されます。
-ただし、ホスティング設定によっては `/destinations` 等へ直接アクセスしたときに 404 になることがあります。
-デプロイ後にスマホブラウザで「各タブの画面まで移動 -> その画面を再読み込み」を行い、必要ならホスティング側の SPA fallback / rewrite 設定を追加してください。
+### デプロイ後の確認
 
-### AsyncStorage 永続化
+1. `GET /health` → `{"ok":true}`  
+2. `GET /api/spots` → 247件前後  
+3. スマホブラウザで Web を開く（3タブ操作）  
+4. `/family` を直接開く・再読み込みしても 404 にならない（Expo 静的HTML）  
+5. AI提案 → plans 3件  
+6. 訪問評価の保存・リロード後の永続化  
 
-このアプリの永続化は `@react-native-async-storage/async-storage` を使用しています。
-Web ではブラウザのストレージ（localStorage）に保存されるため、リロード後もデータが残る想定です。
+### 障害時の確認ポイント
 
-### デプロイ後の動作確認（推奨）
+| 症状 | 確認 |
+|------|------|
+| `/api/spots` が 0件 | Function の `includeFiles` / データパス。Vercel ログの mapper error |
+| AI提案が 500 | `OPENAI_API_KEY` が Production/Preview に入っているか |
+| CORS エラー | 本番同一 Origin なら通常不要。ローカルは `ALLOWED_ORIGINS` / 既定 localhost:8081 |
+| 504 / timeout | OpenAI 遅延。`maxDuration` と結果画面の再試行 |
+| 画面再読み込み 404 | Expo 静的ルート未生成。`npx expo export --platform web` のルート一覧を確認 |
+| `/api/unknown` が HTML | rewrite が API を SPA に吸っていないか（現行は API 先に rewrite） |
 
-- スマホブラウザで Web を開く（ホーム/行先リスト/家族の 3タブが操作できる）
-- 各タブの画面を再読み込みして 404 が起きないことを確認
-- 参加者選択 → AI 提案 → 行先リスト表示 → 訪問記録保存 → リロード後も表示が残ることを確認
+### AsyncStorage
+
+Web ではブラウザ storage に永続化されます。リロード後も家族・履歴が残る想定です。
+
+---
 
 ## Get started（テンプレート）
 
-1. Install dependencies: `npm install`
-2. Start the app: `npx expo start`
-
-In the output, you'll find options to open the app in a development build, Android emulator, iOS simulator, or Expo Go.
+1. Install dependencies: `npm install`  
+2. Start the app: `npx expo start`  
 
 ## Learn more
 
-- [Expo documentation](https://docs.expo.dev/)
-- [Expo Router](https://docs.expo.dev/router/introduction/)
+- [Expo documentation](https://docs.expo.dev/)  
+- [Expo Router](https://docs.expo.dev/router/introduction/)  
+- [Vercel Express](https://vercel.com/docs/frameworks/backend/express)  

@@ -37,22 +37,36 @@ export type ProductionSpotsLoadResult = {
 };
 
 /**
+ * Resolve data root without relying on process.cwd() alone.
+ * Works for: tsx (server/src/services), tsc dist (server/dist/services),
+ * and Vercel Function bundle (api → server/src).
+ */
+function resolveDataRoot(): string {
+  const candidates = [
+    path.join(__dirname, '../data'),
+    path.join(__dirname, '../../src/data'),
+    path.join(__dirname, '../../../server/src/data'),
+    path.join(process.cwd(), 'server/src/data'),
+    path.join(process.cwd(), 'src/data'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return candidates[0];
+}
+
+/** Module-scope cache for static production spots (safe to reuse per warm instance). */
+let productionSpotsCache: ProductionSpotsLoadResult | null = null;
+
+/**
  * Spot data access layer.
  * Production recommendation uses loadProductionSpots() (no fictional sample).
  * loadSampleSpots() remains for inspection/tests.
  */
 export class SpotService {
-  // Works both when running from TS sources (tsx) and from compiled dist/.
-  // - tsx: __dirname = server/src/services => ../data = server/src/data (exists)
-  // - dist: __dirname = dist/services => ../data = dist/data (may not exist) => fallback to CWD/src/data
-  private readonly dataRoot = (() => {
-    const fromDirname = path.join(__dirname, '../data');
-    if (existsSync(fromDirname)) {
-      return fromDirname;
-    }
-    // dist/services -> dist -> (server root) -> src/data
-    return path.join(__dirname, '../../src/data');
-  })();
+  private readonly dataRoot = resolveDataRoot();
 
   /**
    * Load local sample spots (may include fictional places).
@@ -132,9 +146,18 @@ export class SpotService {
 
   /**
    * Merge 6 cities (no fictional sample) + lightweight dedupe.
-   * Safe to call on each request; reads local files only.
+   * Cached in-memory for the lifetime of the serverless/warm instance.
    */
   loadProductionSpots(): ProductionSpotsLoadResult {
+    if (productionSpotsCache) {
+      return productionSpotsCache;
+    }
+    productionSpotsCache = this.loadProductionSpotsUncached();
+    return productionSpotsCache;
+  }
+
+  /** Uncached load — used by cache miss and tests. */
+  loadProductionSpotsUncached(): ProductionSpotsLoadResult {
     const mapperErrors: string[] = [];
     const groups: SpotCandidate[][] = [];
 
@@ -167,6 +190,14 @@ export class SpotService {
 
     const merge = mergeAndDeduplicateSpots(groups);
     return { spots: merge.spots, merge, byCity, mapperErrors };
+  }
+
+  /**
+   * Test-only: clear static production spots cache.
+   * Do not use for user/history data (those are never cached here).
+   */
+  static clearProductionCacheForTests(): void {
+    productionSpotsCache = null;
   }
 
   /**

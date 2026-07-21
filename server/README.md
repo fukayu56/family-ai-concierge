@@ -1,41 +1,45 @@
-# Family AI Concierge API（ローカル）
+# Family AI Concierge API
 
 Expo アプリから呼ぶバックエンドです。OpenAI Structured Outputs 経由でおでかけプランを返します。
 
-## 起動方法
+本番では **Vercel Function**（リポジトリルートの `api/index.ts`）として、Expo Web と同じ Vercel プロジェクトに同居します。Render は使いません。
+
+## 起動方法（ローカル）
 
 ```bash
 cd server
-npm install
+npm install   # ルートで workspaces 利用時はルートの npm ci で可
 # server/.env に OPENAI_API_KEY を設定
-npm run dev
+npm run start
+# または npm run start:prod（build 後）
 ```
 
-起動すると `http://localhost:3001` で待ち受けます。
+起動すると `http://localhost:3001`（`0.0.0.0`）で待ち受けます。
+
+構成:
+
+- `src/app.ts` … Express app（routes / middleware）。`export default app`
+- `src/index.ts` … ローカル用 `app.listen` のみ
+- リポジトリ `api/index.ts` … Vercel が import するエントリ
 
 ## エンドポイント
 
 - `GET /health` … 疎通確認 `{ "ok": true }`
-- `POST /api/recommendations` … strict 3プラン + 任意の `relaxedPlans` を返す
+- `GET /api/spots` … 行先リスト用スポット
+- `POST /api/recommendations` … strict 3プラン + 任意の `relaxedPlans`
 
-## 本番（Render 等）
-
-本番では `npm run build` → `npm run start:prod` を想定しています。
-
-環境変数（例）
+## 環境変数
 
 - `OPENAI_API_KEY`（必須）
-- `PORT`（Render が自動で設定することが多い。コードは `process.env.PORT` を優先します）
-- `ALLOWED_ORIGINS`（CORS 許可 Origin のカンマ区切り）
-  - 例: `https://your-eas-domain.com,http://localhost:8081`
+- `PORT`（ローカル既定 3001。Vercel ではプラットフォームが管理）
+- `ALLOWED_ORIGINS`（任意。CORS 追加 Origin。カンマ区切り）
 
 注意:
-- CORS は無条件許可ではなく、`ALLOWED_ORIGINS` に一致した Origin のみ許可します（完全一致、scheme+host+port）。
-- クライアント側へ OPENAI APIキーは送らないでください（サーバーのみ利用します）。
 
-## 実機から接続するとき
+- OpenAI キーはサーバーのみ。クライアントへ送らない  
+- 本番ログでは Prompt 全文・レスポンス JSON 全文を出しません  
+
+## 実機から接続するとき（ローカル）
 
 スマホと PC を同一 Wi-Fi にし、PC の LAN IP をクライアント側の
 `EXPO_PUBLIC_API_BASE_URL` に設定してください（ルートの README 参照）。
-
-Windows ファイアウォールで 3001 がブロックされていると実機から届きません。
